@@ -10,7 +10,7 @@ import {
   FileText, Shield, Sparkles, TrendingUp, AlertTriangle, ChevronRight, Activity,
   PieChart, Home, Layers, Settings, Zap, BarChart3, Wallet, DollarSign, Target, CheckCircle, Download, Scale, Boxes, Pencil, Eye, X,
   Plus, Calculator, Info, Banknote, LifeBuoy, Mail, ShieldCheck, Gavel, Globe, ChevronDown, ChevronUp, ExternalLink,
-  BookOpen, MousePointer2, Lightbulb, ArrowRight, Info as InfoIcon
+  BookOpen, MousePointer2, Lightbulb, ArrowRight, Info as InfoIcon, Sun, Wind, Thermometer, Clock, Calendar, History, RotateCcw, Trash2
 } from 'lucide-react';
 import { useSimulationStore, ScenarioType, PeriodType } from './store';
 import { runSimulation, generateScenarios } from './lib/finance';
@@ -791,78 +791,108 @@ const SimulationView = () => {
         </div>
       </Card>
       
-      <Card className="p-0 overflow-hidden mb-28 border-[#3B82F6]/30">
-        <div className="p-5 border-b border-white/5 flex items-center justify-between">
+      <Card className="p-0 overflow-hidden mb-28 border-[#7C5CFF]/30">
+        <div className="p-5 border-b border-white/5 flex items-center justify-between bg-[#7C5CFF]/5">
           <div className="flex items-center gap-2">
-            <Scale className="text-[#3B82F6]" size={18} />
-            <h3 className="font-semibold text-white">Matrice de Sensibilité</h3>
+            <Layers className="text-[#7C5CFF]" size={18} />
+            <h3 className="font-bold text-white uppercase tracking-widest text-xs">Matrice de Sensibilité ROI</h3>
           </div>
-          <span className="text-[10px] text-[#3B82F6] font-bold px-2 py-0.5 bg-[#3B82F6]/10 rounded border border-[#3B82F6]/20 uppercase">Impact ROI</span>
+          <span className="text-[10px] text-[#7C5CFF] font-black px-2 py-0.5 bg-[#7C5CFF]/10 rounded border border-[#7C5CFF]/20 uppercase">Projections ±20%</span>
         </div>
-        <div className="p-5">
-          <p className="text-xs text-gray-400 mb-4 font-medium leading-relaxed">Simulation de l'impact combiné des variations de 10% sur le <span className="text-white">Prix</span> et le <span className="text-white">Coût</span>.</p>
-          <div className="grid grid-cols-4 gap-px bg-white/5 rounded-xl border border-white/10 overflow-hidden">
-             <div className="flex flex-col items-center justify-center text-[8px] text-gray-500 bg-[#0F172A] p-2 font-black tracking-widest border-r border-b border-white/5 uppercase leading-none">
-               <span>Coût</span>
-               <div className="h-px w-4 bg-gray-800 my-1"></div>
-               <span>Prix</span>
-             </div>
-             <div className="flex flex-col items-center justify-center bg-[#0F172A] border-b border-white/5 p-2">
-               <span className="text-[10px] text-gray-400 font-bold">-10%</span>
-               <span className="text-[7px] text-gray-600 uppercase font-black">Prix</span>
-             </div>
-             <div className="flex flex-col items-center justify-center bg-[#0F172A] border-b border-white/5 p-2">
-               <span className="text-[10px] text-gray-200 font-bold">Base</span>
-             </div>
-             <div className="flex flex-col items-center justify-center bg-[#0F172A] border-b border-white/5 p-2">
-               <span className="text-[10px] text-gray-400 font-bold">+10%</span>
-               <span className="text-[7px] text-gray-600 uppercase font-black">Prix</span>
-             </div>
-             
-             {[-0.1, 0, 0.1].map(costShift => {
-                return (
-                  <React.Fragment key={costShift}>
-                     <div className="flex flex-col items-center justify-center text-[10px] text-gray-400 py-3 bg-[#0F172A] border-r border-white/5 font-bold">
-                       <span>{costShift > 0 ? "+10%" : costShift < 0 ? "-10%" : "Base"}</span>
-                       <span className="text-[7px] text-gray-600 uppercase font-black mt-0.5">Coût</span>
-                     </div>
-                     {[-0.1, 0, 0.1].map(priceShift => {
-                        const modifiedState = { ...store, unitPrice: store.unitPrice * (1 + priceShift), unitCost: store.unitCost * (1 + costShift) };
-                        const cellResults = runSimulation(modifiedState as any, store.activeScenario);
-                        const cellRoi = cellResults.roi;
-                        const diff = cellRoi - baseRoi;
-                        const isCenter = costShift === 0 && priceShift === 0;
+        <div className="p-6">
+          <p className="text-[10px] text-gray-500 mb-6 font-medium leading-relaxed uppercase tracking-widest">
+            Impact croisé des prix <span className="text-white">(Y)</span> et des coûts <span className="text-white">(X)</span> sur votre rentabilité.
+          </p>
+          
+          <div className="overflow-x-auto no-scrollbar pb-2">
+            <div className="min-w-[450px]">
+              <div className="grid grid-cols-6 gap-1">
+                {/* Header Corner */}
+                <div className="flex flex-col items-center justify-center text-[7px] text-gray-600 bg-[#0F172A] p-2 font-black tracking-widest border border-white/5 rounded-tl-xl uppercase leading-none">
+                  <span>COÛTS</span>
+                  <div className="h-px w-4 bg-gray-800 my-1"></div>
+                  <span>PRIX</span>
+                </div>
+                
+                {/* Cost headers (Top) */}
+                {[-20, -10, 0, 10, 20].map(mod => (
+                  <div key={mod} className="p-2 flex flex-col items-center justify-center bg-white/5 border border-white/5 rounded-t-xl">
+                    <span className={`text-[10px] font-black ${mod === 0 ? 'text-white' : 'text-gray-500'}`}>
+                      {mod > 0 ? '+' : ''}{mod}%
+                    </span>
+                  </div>
+                ))}
+
+                {/* Matrix Rows */}
+                {[-20, -10, 0, 10, 20].map(priceMod => {
+                  return (
+                    <React.Fragment key={priceMod}>
+                      {/* Price Header (Left) */}
+                      <div className="p-2 flex items-center justify-end bg-white/5 border border-white/5 rounded-l-xl">
+                        <span className={`text-[12px] font-black ${priceMod === 0 ? 'text-white' : 'text-gray-500'}`}>
+                          {priceMod > 0 ? '+' : ''}{priceMod}%
+                        </span>
+                      </div>
+                      
+                      {/* Cells */}
+                      {[-20, -10, 0, 10, 20].map(costMod => {
+                        const adjPrice = store.unitPrice * (1 + priceMod / 100);
+                        const adjCost = store.unitCost * (1 + costMod / 100);
                         
-                        let cellClass = "bg-[#111827] text-gray-400";
-                        if (isCenter) cellClass = "bg-[#7C5CFF]/10 text-white font-black ring-1 ring-inset ring-[#7C5CFF]/30 z-10";
-                        else if (diff > 10) cellClass = "bg-emerald-500/30 text-emerald-300 font-bold";
-                        else if (diff > 0) cellClass = "bg-emerald-500/10 text-emerald-400/80";
-                        else if (diff < -10) cellClass = "bg-rose-500/30 text-rose-300 font-bold";
-                        else if (diff < 0) cellClass = "bg-rose-500/10 text-rose-400/80";
-  
+                        const cellResults = runSimulation({
+                          ...store,
+                          unitPrice: adjPrice,
+                          unitCost: adjCost
+                        } as any, store.activeScenario);
+                        
+                        const cellRoi = cellResults.roi;
+                        const isCenter = priceMod === 0 && costMod === 0;
+                        
+                        // Dynamic color mapping based on ROI health
+                        let cellClass = "bg-[#111827] text-gray-500 grayscale opacity-60";
+                        if (isCenter) {
+                          cellClass = "bg-[#7C5CFF]/20 text-white font-black ring-2 ring-[#7C5CFF] z-10 shadow-[0_0_15px_rgba(124,92,255,0.3)]";
+                        } else if (cellRoi > 100) {
+                          cellClass = "bg-emerald-500/20 text-emerald-400 font-bold border-emerald-500/20 shadow-inner";
+                        } else if (cellRoi > 30) {
+                          cellClass = "bg-emerald-500/10 text-emerald-500/70 border-emerald-500/10";
+                        } else if (cellRoi > 0) {
+                          cellClass = "bg-amber-500/10 text-amber-500/70 border-amber-500/10";
+                        } else {
+                          cellClass = "bg-rose-500/10 text-rose-500/70 border-rose-500/10";
+                        }
+
                         return (
                           <motion.div 
-                            key={`${costShift}-${priceShift}`} 
-                            initial={false}
-                            whileHover={{ scale: 1.05, zIndex: 20 }}
-                            className={`flex flex-col items-center justify-center py-4 tabular-nums relative ${cellClass} border-b border-r border-white/5 cursor-default group`}
+                            key={`${priceMod}-${costMod}`} 
+                            whileHover={{ scale: 1.08, zIndex: 20, grayscale: 0, opacity: 1 }}
+                            className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all duration-300 cursor-help ${cellClass}`}
                           >
-                            <span className="text-[12px]">{cellRoi.toFixed(1)}%</span>
-                            {!isCenter && (
-                              <motion.span 
-                                initial={{ opacity: 0.6 }}
-                                whileHover={{ opacity: 1 }}
-                                className={`text-[8px] font-bold mt-1 ${diff > 0 ? 'text-emerald-400' : 'text-rose-400'}`}
-                              >
-                                {diff > 0 ? '↑' : '↓'} {Math.abs(diff).toFixed(1)}%
-                              </motion.span>
-                            )}
+                            <span className="text-[11px] font-mono tracking-tight font-black">{Math.round(cellRoi)}%</span>
                           </motion.div>
-                        )
-                     })}
-                  </React.Fragment>
-                )
-             })}
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex gap-4">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
+                <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Zone de Profit</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.5)]"></div>
+                <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Zone de Risque</span>
+              </div>
+            </div>
+            <div className="text-[9px] text-gray-500 italic bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
+              Conseil : Maintenez un <span className="text-white">ROI {'>'} 30%</span> pour absorber les imprévus.
+            </div>
           </div>
         </div>
       </Card>
@@ -890,6 +920,21 @@ const SimulationView = () => {
             </div>
          </div>
       </div>
+
+      <div className="fixed bottom-[11rem] right-6 z-40">
+        <motion.button 
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => {
+            store.saveToHistory();
+            alert("Analyse sauvegardée dans l'historique !");
+          }}
+          className="bg-emerald-500 text-white p-4 rounded-full shadow-2xl flex items-center gap-2 font-bold text-sm"
+        >
+          <CheckCircle size={20} /> <span className="hidden sm:inline text-xs uppercase tracking-widest">Enregistrer</span>
+        </motion.button>
+      </div>
+
     </motion.div>
   );
 }
@@ -1956,11 +2001,258 @@ const SupportView = () => {
 };
 
 
+// --- History View ---
+
+const HistoryView = ({ onRestore, key }: { onRestore: () => void, key?: string }) => {
+  const { history, loadFromHistory, deleteHistoryItem } = useSimulationStore();
+
+  if (history.length === 0) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="flex flex-col items-center justify-center p-12 text-center space-y-4 pt-40"
+      >
+        <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-4">
+          <History size={40} className="text-gray-600" />
+        </div>
+        <h3 className="text-xl font-bold text-white tracking-tight">Aucun historique</h3>
+        <p className="text-sm text-gray-400 max-w-xs">Les produits que vous analysez apparaîtront ici pour une consultation ultérieure.</p>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+      className="space-y-6 pb-28 max-w-lg mx-auto w-full pt-20 px-6"
+    >
+      <header className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <History className="text-[#7C5CFF]" size={18} />
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Archive des Analyses</p>
+        </div>
+        <h1 className="text-3xl font-extrabold text-white tracking-tighter">Historique</h1>
+      </header>
+
+      <div className="space-y-4">
+        {history.map((item) => (
+          <Card key={item.id} className="p-5 group">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h4 className="text-lg font-bold text-white mb-1 group-hover:text-[#7C5CFF] transition-colors">{item.productName}</h4>
+                <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                  <Clock size={10} /> {item.date}
+                </div>
+              </div>
+              <button 
+                onClick={() => deleteHistoryItem(item.id)}
+                className="p-2 bg-white/5 hover:bg-rose-500/10 text-gray-500 hover:text-rose-500 rounded-xl transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                <p className="text-[9px] font-black text-gray-500 uppercase mb-1">Prix de Vente</p>
+                <p className="text-sm font-bold text-white">{item.data.unitPrice} €</p>
+              </div>
+              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                <p className="text-[9px] font-black text-gray-500 uppercase mb-1">Volume</p>
+                <p className="text-sm font-bold text-white">{item.data.volume} u.</p>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => {
+                loadFromHistory(item);
+                onRestore();
+              }}
+              className="w-full bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 text-xs"
+            >
+              <RotateCcw size={14} /> Restaurer cette Simulation
+            </button>
+          </Card>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+
+const SmartInfoBar = ({ visible }: { visible: boolean }) => {
+  const [now, setNow] = useState(new Date());
+  const [data, setData] = useState<{
+    temp: string;
+    condition: string;
+    pollen: string;
+    air: string;
+    city: string;
+    forecast: any[];
+  }>({
+    temp: "--°C",
+    condition: "Chargement...",
+    pollen: "--",
+    air: "--",
+    city: "Localisation...",
+    forecast: []
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    const fetchData = async () => {
+      try {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const { latitude, longitude } = position.coords;
+          
+          try {
+            // Fetch Weather
+            const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=weather_code&timezone=auto`);
+            const weatherJson = await weatherRes.json();
+
+            // Fetch Air Quality
+            const airRes = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitude}&longitude=${longitude}&current=pm2_5,pollen_grain_grass&daily=pm2_5,pollen_grain_grass&timezone=auto`);
+            const airJson = await airRes.json();
+
+            const weatherCodes: Record<number, string> = {
+              0: "Calme", 1: "Clair", 2: "Nuageux", 3: "Couvert",
+              45: "Brouillard", 48: "Givre", 51: "Bruine", 61: "Pluie",
+              71: "Neige", 80: "Averses", 95: "Orage"
+            };
+
+            const airQuality = (val: number) => val < 10 ? "Bon" : val < 25 ? "Moyen" : "Mauvais";
+            const pollenLevel = (val: number) => val < 10 ? "Faible" : val < 50 ? "Modéré" : "Élevé";
+
+            // Construct Forecast
+            const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+            const dailyTime = airJson?.daily?.time || [];
+            const forecastData = dailyTime.map((time: string, i: number) => {
+              const date = new Date(time);
+              return {
+                day: days[date.getDay()],
+                air: airJson?.daily?.pm2_5?.[i] !== undefined ? airQuality(airJson.daily.pm2_5[i]) : "--",
+                pol: airJson?.daily?.pollen_grain_grass?.[i] !== undefined ? pollenLevel(airJson.daily.pollen_grain_grass[i]) : "--"
+              };
+            }).slice(0, 7);
+
+            setData({
+              temp: weatherJson?.current?.temperature_2m !== undefined ? `${Math.round(weatherJson.current.temperature_2m)}°C` : "--°C",
+              condition: weatherCodes[weatherJson?.current?.weather_code] || "Variable",
+              pollen: airJson?.current?.pollen_grain_grass !== undefined ? pollenLevel(airJson.current.pollen_grain_grass) : "--",
+              air: airJson?.current?.pm2_5 !== undefined ? airQuality(airJson.current.pm2_5) : "--",
+              city: `Lat: ${latitude.toFixed(2)}, Lon: ${longitude.toFixed(2)}`,
+              forecast: forecastData
+            });
+          } catch (apiError) {
+            console.error("API Error", apiError);
+            setData(prev => ({ ...prev, condition: "Erreur API" }));
+          }
+        }, (geoError) => {
+          console.error("Geo Error", geoError);
+          setData(prev => ({ ...prev, city: "Localisation refusée", condition: "--" }));
+        });
+      } catch (error) {
+        console.error("Error fetching geo data", error);
+      }
+    };
+
+    fetchData();
+  }, [visible]);
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          className="fixed top-0 w-full z-[70] bg-[#0F172A]/95 backdrop-blur-3xl border-b border-[#7C5CFF]/30 overflow-hidden shadow-2xl max-w-lg mx-auto left-0 right-0 rounded-b-2xl px-4"
+        >
+          <div className="py-4 px-2 flex flex-col gap-4 text-white">
+            {/* Time, Date & Geo Info */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock size={16} className="text-[#7C5CFF]" />
+                  <span className="text-sm font-black font-mono tracking-wider tabular-nums">{formatTime(now)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar size={16} className="text-[#7C5CFF]" />
+                  <span className="text-[10px] font-bold uppercase tracking-tight text-gray-400">{formatDate(now)}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 justify-center py-1 bg-white/5 rounded-lg border border-white/5">
+                <Globe size={10} className="text-[#7C5CFF]" />
+                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">{data.city}</span>
+              </div>
+            </div>
+
+            {/* Weather & Vitals */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-white/5 p-2 rounded-xl border border-white/5 flex flex-col items-center">
+                <Sun size={14} className="text-amber-400 mb-1" />
+                <span className="text-xs font-bold">{data.temp}</span>
+                <span className="text-[8px] text-gray-500 uppercase font-bold">{data.condition}</span>
+              </div>
+              <div className="bg-white/5 p-2 rounded-xl border border-white/5 flex flex-col items-center">
+                <Wind size={14} className="text-cyan-400 mb-1" />
+                <span className="text-[8px] text-gray-500 font-black uppercase">Pollution</span>
+                <span className={`text-[10px] font-bold ${data.air === 'Bon' ? 'text-emerald-400' : 'text-amber-400'}`}>{data.air}</span>
+              </div>
+              <div className="bg-white/5 p-2 rounded-xl border border-white/5 flex flex-col items-center">
+                <Thermometer size={14} className="text-rose-400 mb-1" />
+                <span className="text-[8px] text-gray-500 font-black uppercase">Pollen</span>
+                <span className={`text-[10px] font-bold ${data.pollen === 'Faible' ? 'text-emerald-400' : 'text-rose-400'}`}>{data.pollen}</span>
+              </div>
+            </div>
+
+            {/* Forecast Mini Grid */}
+            <div className="flex justify-between gap-1 overflow-x-auto no-scrollbar">
+              {data.forecast.map((f, i) => (
+                <div key={i} className="flex flex-col items-center p-2 rounded-xl bg-white/5 border border-white/5 min-w-[45px]">
+                  <span className="text-[7px] font-black text-gray-500 uppercase">{f.day}</span>
+                  <div className="flex gap-1 mt-1.5">
+                    <div className={`w-1.5 h-1.5 rounded-full ${f.air === 'Bon' ? 'bg-emerald-500' : f.air === 'Moyen' ? 'bg-amber-500' : 'bg-rose-500'}`} title={`Air: ${f.air}`}></div>
+                    <div className={`w-1.5 h-1.5 rounded-full ${f.pol === 'Faible' ? 'bg-emerald-500' : f.pol === 'Modéré' ? 'bg-amber-500' : 'bg-rose-500'}`} title={`Pollen: ${f.pol}`}></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+
 // --- App ---
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [showSmartBar, setShowSmartBar] = useState(false);
   const store = useSimulationStore();
   const { updateLastSaved, lastSaved } = store;
+
+  useEffect(() => {
+    if (showSmartBar) {
+      const timer = setTimeout(() => setShowSmartBar(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSmartBar]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1976,8 +2268,13 @@ export default function App() {
       <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#7C5CFF]/10 blur-[120px] pointer-events-none"></div>
       <div className="fixed bottom-[10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#2563EB]/10 blur-[120px] pointer-events-none"></div>
 
+      <SmartInfoBar visible={showSmartBar} />
+
       {/* TopNav */}
-      <header className="fixed top-0 w-full z-50 bg-[#0F172A]/80 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 w-full">
+      <header 
+        onClick={() => setShowSmartBar(true)}
+        className="fixed top-0 w-full z-50 bg-[#0F172A]/80 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 w-full cursor-pointer group"
+      >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#7C5CFF] to-[#2563EB] flex items-center justify-center overflow-hidden border border-white/20 shadow-lg shadow-[#7C5CFF]/20">
             <span className="text-white font-bold text-xs tracking-tighter">RV</span>
@@ -2015,6 +2312,7 @@ export default function App() {
         {activeTab === "scenarios" && <ScenariosView key="scenarios" />}
         {activeTab === "analyses" && <InsightsView key="analyses" />}
         {activeTab === "support" && <SupportView key="support" />}
+        {activeTab === "history" && <HistoryView key="history" onRestore={() => setActiveTab("dashboard")} />}
       </AnimatePresence>
 
       {/* BottomNav */}
@@ -2049,6 +2347,12 @@ export default function App() {
           active={activeTab === "analyses"} 
           onClick={() => setActiveTab("analyses")} 
           highlight={true}
+        />
+        <NavItem 
+          icon={History} 
+          label="Hist." 
+          active={activeTab === "history"} 
+          onClick={() => setActiveTab("history")} 
         />
         <NavItem 
           icon={LifeBuoy} 

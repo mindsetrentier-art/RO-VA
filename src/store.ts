@@ -14,6 +14,30 @@ interface Snapshot {
   roi: number;
 }
 
+export interface HistoryItem {
+  id: string;
+  productName: string;
+  date: string;
+  timestamp: number;
+  data: {
+    initialCapital: number;
+    unitPrice: number;
+    volume: number;
+    annualGrowth: number;
+    unitCost: number;
+    fixedCosts: number;
+    marketingExpense: number;
+    logisticsOps: number;
+    safetyStock: number;
+    initialStock: number;
+    finalStock: number;
+    periodType: PeriodType;
+    targetSales: number;
+    targetSalesPeriod: "Semaine" | "Mois";
+    analysisMode: 'Product' | 'Project';
+  };
+}
+
 interface SimulationState {
   // Inputs
   initialCapital: number;
@@ -39,6 +63,7 @@ interface SimulationState {
   activeScenario: ScenarioType;
   lastSaved: string | null;
   snapshots: Snapshot[];
+  history: HistoryItem[];
   
   // Actions
   setInitialCapital: (val: number) => void;
@@ -61,6 +86,9 @@ interface SimulationState {
   updateLastSaved: () => void;
   saveSnapshot: (name: string) => void;
   deleteSnapshot: (id: string) => void;
+  saveToHistory: () => void;
+  loadFromHistory: (item: HistoryItem) => void;
+  deleteHistoryItem: (id: string) => void;
 }
 
 export const useSimulationStore = create<SimulationState>()(
@@ -87,6 +115,7 @@ export const useSimulationStore = create<SimulationState>()(
       activeScenario: "Réaliste",
       lastSaved: null,
       snapshots: [],
+      history: [],
       
       setInitialCapital: (val) => set({ initialCapital: val }),
       setUnitPrice: (val) => set({ unitPrice: val }),
@@ -106,6 +135,44 @@ export const useSimulationStore = create<SimulationState>()(
       setAnalysisMode: (val) => set({ analysisMode: val }),
       setActiveScenario: (val) => set({ activeScenario: val }),
       updateLastSaved: () => set({ lastSaved: new Date().toLocaleTimeString() }),
+      
+      saveToHistory: () => {
+        const state = get();
+        const newItem: HistoryItem = {
+          id: Math.random().toString(36).substr(2, 9),
+          productName: state.productName,
+          date: new Date().toLocaleString('fr-FR'),
+          timestamp: Date.now(),
+          data: {
+            initialCapital: state.initialCapital,
+            unitPrice: state.unitPrice,
+            volume: state.volume,
+            annualGrowth: state.annualGrowth,
+            unitCost: state.unitCost,
+            fixedCosts: state.fixedCosts,
+            marketingExpense: state.marketingExpense,
+            logisticsOps: state.logisticsOps,
+            safetyStock: state.safetyStock,
+            initialStock: state.initialStock,
+            finalStock: state.finalStock,
+            periodType: state.periodType,
+            targetSales: state.targetSales,
+            targetSalesPeriod: state.targetSalesPeriod,
+            analysisMode: state.analysisMode,
+          }
+        };
+        set({ history: [newItem, ...state.history].slice(0, 20) });
+      },
+
+      loadFromHistory: (item) => {
+        set({
+          ...item.data,
+          productName: item.productName,
+          activeScenario: "Réaliste" // Reset to default
+        });
+      },
+
+      deleteHistoryItem: (id) => set({ history: get().history.filter(h => h.id !== id) }),
       saveSnapshot: (name) => {
          const state = get();
          // runSimulation logic would be imported or computed here
