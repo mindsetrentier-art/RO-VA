@@ -24,11 +24,13 @@ const formatCurrency = (v: number, withM = true) => {
 };
 
 export function useCountUp(value: number, format?: (v: number) => string) {
-  const [display, setDisplay] = useState(value);
+  const safeValue = isFinite(value) ? value : 0;
+  const [display, setDisplay] = useState(safeValue);
 
   useEffect(() => {
-    let start = display;
-    const distance = value - start;
+    let start = isFinite(display) ? display : 0;
+    const target = isFinite(value) ? value : 0;
+    const distance = target - start;
     const duration = 500; // ms
     let startTime: number | null = null;
 
@@ -563,6 +565,23 @@ const DashboardView = () => {
           suffix="%"
           colorClass="text-[#7C5CFF]"
         />
+        <KPICard 
+          title="Marge" 
+          value={results.margin} 
+          trend="Rentabilité globale"
+          icon={PieChart}
+          suffix="%"
+          colorClass="text-amber-400"
+        />
+        <KPICard 
+          title="Bénef / Unité" 
+          value={state.volume > 0 ? results.netProfit / state.volume : 0} 
+          trend="Profit par article"
+          icon={DollarSign}
+          prefix="€"
+          isCurrency={true}
+          colorClass="text-cyan-400"
+        />
       </div>
 
       <Card>
@@ -752,7 +771,7 @@ const SimulationView = () => {
              <div className="text-right">
                 <p className="text-sm font-bold text-white">€{(store.unitPrice - store.unitCost).toFixed(0)}</p>
                 <p className="text-[10px] text-emerald-400 font-bold tracking-tighter">
-                  {(((store.unitPrice - store.unitCost) / store.unitPrice) * 100).toFixed(1)}%
+                  {store.unitPrice > 0 ? (((store.unitPrice - store.unitCost) / store.unitPrice) * 100).toFixed(1) : "0"}%
                 </p>
              </div>
           </div>
@@ -785,12 +804,107 @@ const SimulationView = () => {
               />
             </div>
             <p className="text-[9px] text-gray-500 italic mt-2 leading-relaxed">
-              Pour chaque <span className="text-white">€1.00</span> de vente, vous conservez <span className="text-white">€{(results.margin / 100).toFixed(2)}</span> après tous les frais.
+              Pour chaque <span className="text-white">€1.00</span> de vente, vous conservez <span className="text-white">€{isFinite(results.margin) ? (results.margin / 100).toFixed(2) : "0.00"}</span> après tous les frais.
             </p>
           </div>
         </div>
       </Card>
       
+      {/* Suggestions Intelligentes */}
+      <Card className="p-6 border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent">
+        <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-3">
+          <Sparkles className="text-amber-400" size={16} /> 
+          Suggestions Intelligentes
+        </h3>
+        
+        <div className="space-y-4">
+          {(() => {
+            const suggestions = [];
+            
+            // Simulation logic for suggestions
+            const pricePlus10 = runSimulation({ ...store, unitPrice: store.unitPrice * 1.1 } as any, store.activeScenario);
+            const costMinus10 = runSimulation({ ...store, unitCost: store.unitCost * 0.9 } as any, store.activeScenario);
+            const volumePlus20 = runSimulation({ ...store, volume: store.volume * 1.2 } as any, store.activeScenario);
+            
+            if (pricePlus10.roi > results.roi + 5) {
+              suggestions.push({
+                title: "Optimisation du Prix",
+                desc: `Augmenter le prix de 10% porterait votre ROI à ${pricePlus10.roi.toFixed(1)}%.`,
+                action: () => store.setUnitPrice(store.unitPrice * 1.1),
+                impact: "HAUT",
+                icon: TrendingUp,
+                color: "text-emerald-400"
+              });
+            }
+            
+            if (costMinus10.roi > results.roi + 3) {
+              suggestions.push({
+                title: "Réduction des Coûts",
+                desc: `Une baisse de 10% du coût de revient améliorerait significativement la marge nette.`,
+                action: () => store.setUnitCost(store.unitCost * 0.9),
+                impact: "MÉDIUM",
+                icon: Shield,
+                color: "text-blue-400"
+              });
+            }
+
+            if (volumePlus20.roi > results.roi + 2) {
+              suggestions.push({
+                title: "Échelle de Volume",
+                desc: `Atteindre +20% de volume permettrait de mieux absorber les frais fixes.`,
+                action: () => store.setVolume(store.volume * 1.2),
+                impact: "MÉDIUM",
+                icon: Layers,
+                color: "text-[#7C5CFF]"
+              });
+            }
+
+            if (results.roi < 10 && store.marketingExpense > 15) {
+              suggestions.push({
+                title: "Efficacité Marketing",
+                desc: "Vos dépenses marketing impactent trop lourdement votre ROI actuel.",
+                action: () => store.setMarketingExpense(Math.max(0, store.marketingExpense - 5)),
+                impact: "CRITIQUE",
+                icon: AlertTriangle,
+                color: "text-rose-400"
+              });
+            }
+
+            if (suggestions.length === 0) {
+              return (
+                <div className="flex flex-col items-center py-4 text-center">
+                  <CheckCircle size={24} className="text-emerald-500 mb-2" />
+                  <p className="text-xs text-gray-400">Vos paramètres actuels sont déjà hautement optimisés pour ce scénario.</p>
+                </div>
+              );
+            }
+
+            return suggestions.map((s, i) => (
+              <div key={i} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/5 items-start">
+                <div className={`p-2 rounded-xl bg-white/5 ${s.color}`}>
+                  <s.icon size={18} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-1">
+                    <h4 className="text-[12px] font-bold text-white">{s.title}</h4>
+                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border border-white/10 ${s.impact === 'HAUT' || s.impact === 'CRITIQUE' ? 'bg-rose-500/10 text-rose-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                      {s.impact}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 leading-tight mb-3 italic">"{s.desc}"</p>
+                  <button 
+                    onClick={s.action}
+                    className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[#7C5CFF] hover:text-white transition-colors"
+                  >
+                    Appliquer <ArrowRight size={10} />
+                  </button>
+                </div>
+              </div>
+            ));
+          })()}
+        </div>
+      </Card>
+
       <Card className="p-0 overflow-hidden mb-28 border-[#7C5CFF]/30">
         <div className="p-5 border-b border-white/5 flex items-center justify-between bg-[#7C5CFF]/5">
           <div className="flex items-center gap-2">
@@ -1417,8 +1531,8 @@ const StockView = () => {
   const store = useSimulationStore();
   const results = runSimulation(store as any, store.activeScenario);
   
-  const isSafetyStockCritical = results.averageStock < results.recommendedMinStock;
-  const isCoverageCritical = results.stockDurationDays < 15; // Moins de 15 jours
+  const isSafetyStockCritical = results.averageStock < (results.recommendedMinStock * store.safetyStockAlertThreshold / 100);
+  const isCoverageCritical = results.stockDurationDays < store.lowCoverageThreshold;
   const isCritical = isSafetyStockCritical || isCoverageCritical;
 
   return (
@@ -1470,7 +1584,7 @@ const StockView = () => {
                   <AlertTriangle size={16} className="text-rose-500 mt-0.5" />
                   <div>
                     <p className="text-[11px] font-bold text-rose-400 uppercase tracking-wide">Stock de sécurité rompu</p>
-                    <p className="text-[10px] text-rose-300 opacity-80">Le stock moyen est inférieur au minimum recommandé de {results.recommendedMinStock.toFixed(0)} u.</p>
+                    <p className="text-[10px] text-rose-300 opacity-80">Le stock moyen est inférieur à {store.safetyStockAlertThreshold}% du minimum recommandé ({ (results.recommendedMinStock * store.safetyStockAlertThreshold / 100).toFixed(0) } u.).</p>
                   </div>
                 </div>
               )}
@@ -1479,7 +1593,7 @@ const StockView = () => {
                   <Zap size={16} className="text-amber-500 mt-0.5" />
                   <div>
                     <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wide">Couverture Faible</p>
-                    <p className="text-[10px] text-amber-300 opacity-80">Vous n'avez que {results.stockDurationDays.toFixed(0)} jours de stock. Risque d'interruption.</p>
+                    <p className="text-[10px] text-amber-300 opacity-80">Vous avez moins de {store.lowCoverageThreshold} jours de stock ({results.stockDurationDays.toFixed(0)} j.). Risque d'interruption.</p>
                   </div>
                 </div>
               )}
@@ -1560,6 +1674,40 @@ const StockView = () => {
             </div>
           </div>
         </div>
+
+        <div className="mt-8 pt-6 border-t border-white/5">
+          <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
+            <Settings className="text-gray-400" size={16} /> 
+            Configuration des Alertes
+          </h3>
+          
+          <div className="grid grid-cols-2 gap-4 mb-2">
+            <div className="flex flex-col gap-2">
+              <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1">
+                Seuil Couverture (Jours)
+              </label>
+              <input 
+                type="number"
+                value={store.lowCoverageThreshold}
+                onChange={(e) => store.setLowCoverageThreshold(parseFloat(e.target.value) || 0)}
+                className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2 text-white font-bold text-sm outline-none focus:border-amber-500/50 transition-all"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[9px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1">
+                Seuil Sécurité (%)
+              </label>
+              <input 
+                type="number"
+                value={store.safetyStockAlertThreshold}
+                onChange={(e) => store.setSafetyStockAlertThreshold(parseFloat(e.target.value) || 0)}
+                className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2 text-white font-bold text-sm outline-none focus:border-rose-500/50 transition-all"
+              />
+            </div>
+          </div>
+          <p className="text-[8px] text-gray-500 italic mt-2">Définit quand les badges d'alerte s'affichent sur le tableau de bord.</p>
+        </div>
       </Card>
 
       <div className="grid grid-cols-2 gap-4">
@@ -1620,8 +1768,8 @@ const StockView = () => {
               </h3>
               <p className={`text-xs ${isSafetyStockCritical ? 'text-rose-400/80' : 'text-amber-400/80'} leading-relaxed`}>
                 {isSafetyStockCritical 
-                  ? `Votre stock moyen (${results.averageStock.toFixed(0)} u.) est inférieur au stock de sécurité recommandé (${results.recommendedMinStock.toFixed(0)} u.).`
-                  : `Attention : votre couverture de stock est critique (${results.stockDurationDays.toFixed(0)} jours). Prévoyez un réapprovisionnement rapide.`
+                  ? `Votre stock moyen (${results.averageStock.toFixed(0)} u.) est inférieur au seuil d'alerte défini (${store.safetyStockAlertThreshold}% du recommandé).`
+                  : `Attention : votre couverture de stock est inférieure à votre seuil personnalisé (${store.lowCoverageThreshold} jours).`
                 }
               </p>
             </div>
@@ -2003,7 +2151,7 @@ const SupportView = () => {
 
 // --- History View ---
 
-const HistoryView = ({ onRestore, key }: { onRestore: () => void, key?: string }) => {
+const HistoryView: React.FC<{ onRestore: () => void }> = ({ onRestore }) => {
   const { history, loadFromHistory, deleteHistoryItem } = useSimulationStore();
 
   if (history.length === 0) {

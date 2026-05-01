@@ -22,7 +22,9 @@ export const runSimulation = (data: any, scenario: ScenarioType) => {
     
     const totalCosts = rawCosts + marketingCosts + logisticCosts + totalFixedCosts;
     const netProfit = revenue - totalCosts;
-    const roi = (netProfit / data.initialCapital) * 100;
+    
+    // Safety check for initialCapital to avoid Infinity
+    const roi = data.initialCapital > 0 ? (netProfit / data.initialCapital) * 100 : 0;
     
     // Stock Average Calculation
     const averageStock = (data.initialStock + data.finalStock) / 2;
@@ -39,11 +41,11 @@ export const runSimulation = (data: any, scenario: ScenarioType) => {
     const recommendedMinStock = dailySalesVelocity * data.safetyStock;
     
     // Performance Score Logic (Index 0-100)
-    const roiScore = Math.min(100, (roi / 25) * 100) * 0.4;
-    const margin = (netProfit / revenue) * 100;
-    const marginScore = Math.min(100, (margin / 30) * 100) * 0.4;
-    const growthScore = Math.min(100, (data.annualGrowth / 15) * 100) * 0.2;
-    const roivaScore = Math.round(roiScore + marginScore + growthScore);
+    const roiScore = isFinite(roi) ? Math.max(0, Math.min(100, (roi / 25) * 100)) * 0.4 : 0;
+    const margin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+    const marginScore = isFinite(margin) ? Math.max(0, Math.min(100, (margin / 30) * 100)) * 0.4 : 0;
+    const growthScore = isFinite(data.annualGrowth) ? Math.max(0, Math.min(100, (data.annualGrowth / 15) * 100)) * 0.2 : 0;
+    const roivaScore = Math.round(roiScore + marginScore + growthScore) || 0;
     
     // Make up IRR for MVP based on ROI
     const irr = roi * 0.75; 

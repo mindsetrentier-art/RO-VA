@@ -35,6 +35,8 @@ export interface HistoryItem {
     targetSales: number;
     targetSalesPeriod: "Semaine" | "Mois";
     analysisMode: 'Product' | 'Project';
+    lowCoverageThreshold: number;
+    safetyStockAlertThreshold: number;
   };
 }
 
@@ -58,6 +60,8 @@ interface SimulationState {
   targetSalesPeriod: "Semaine" | "Mois";
   productName: string;
   analysisMode: 'Product' | 'Project';
+  lowCoverageThreshold: number;
+  safetyStockAlertThreshold: number;
   
   // App State
   activeScenario: ScenarioType;
@@ -82,6 +86,8 @@ interface SimulationState {
   setTargetSalesPeriod: (val: "Semaine" | "Mois") => void;
   setProductName: (val: string) => void;
   setAnalysisMode: (val: 'Product' | 'Project') => void;
+  setLowCoverageThreshold: (val: number) => void;
+  setSafetyStockAlertThreshold: (val: number) => void;
   setActiveScenario: (val: ScenarioType) => void;
   updateLastSaved: () => void;
   saveSnapshot: (name: string) => void;
@@ -111,6 +117,8 @@ export const useSimulationStore = create<SimulationState>()(
       targetSalesPeriod: "Semaine",
       productName: "Produit Alpha",
       analysisMode: 'Product',
+      lowCoverageThreshold: 15,
+      safetyStockAlertThreshold: 100,
       
       activeScenario: "Réaliste",
       lastSaved: null,
@@ -133,6 +141,8 @@ export const useSimulationStore = create<SimulationState>()(
       setTargetSalesPeriod: (val) => set({ targetSalesPeriod: val }),
       setProductName: (val) => set({ productName: val }),
       setAnalysisMode: (val) => set({ analysisMode: val }),
+      setLowCoverageThreshold: (val) => set({ lowCoverageThreshold: val }),
+      setSafetyStockAlertThreshold: (val) => set({ safetyStockAlertThreshold: val }),
       setActiveScenario: (val) => set({ activeScenario: val }),
       updateLastSaved: () => set({ lastSaved: new Date().toLocaleTimeString() }),
       
@@ -159,6 +169,8 @@ export const useSimulationStore = create<SimulationState>()(
             targetSales: state.targetSales,
             targetSalesPeriod: state.targetSalesPeriod,
             analysisMode: state.analysisMode,
+            lowCoverageThreshold: state.lowCoverageThreshold,
+            safetyStockAlertThreshold: state.safetyStockAlertThreshold,
           }
         };
         set({ history: [newItem, ...state.history].slice(0, 20) });
