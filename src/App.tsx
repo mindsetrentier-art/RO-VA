@@ -8,10 +8,12 @@ import React, { useState, useEffect } from 'react';
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from 'recharts';
 import {
   FileText, Shield, Sparkles, TrendingUp, AlertTriangle, ChevronRight, Activity,
-  PieChart, Home, Layers, Settings, Zap, BarChart3, Wallet, DollarSign, Target, CheckCircle, Download, Scale
+  PieChart, Home, Layers, Settings, Zap, BarChart3, Wallet, DollarSign, Target, CheckCircle, Download, Scale, Boxes, Pencil, Eye, X
 } from 'lucide-react';
-import { useSimulationStore, ScenarioType } from './store';
+import { useSimulationStore, ScenarioType, PeriodType } from './store';
 import { runSimulation, generateScenarios } from './lib/finance';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // --- Utils ---
 export function useCountUp(value: number, format?: (v: number) => string) {
@@ -47,28 +49,51 @@ export function useCountUp(value: number, format?: (v: number) => string) {
 
 // --- Components ---
 const Card = ({ children, className = "" }: any) => (
-  <div className={`bg-[#111827]/80 backdrop-blur-xl border border-white/10 rounded-[16px] shadow-sm p-6 card-hover ${className}`}>
-    {children}
+  <div className={`relative bg-[#0B0F1A] border border-white/10 rounded-[16px] shadow-sm p-6 card-hover overflow-hidden ${className}`}>
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
+      <Shield size={120} className="text-[#7C5CFF]" />
+    </div>
+    <div className="relative z-10">
+      {children}
+    </div>
   </div>
 );
 
 const Button = ({ children, onClick, className = "", icon: Icon, variant = "primary" }: any) => {
   const isPrimary = variant === "primary";
+  
   return (
-    <button 
+    <motion.button 
       onClick={onClick}
-      className={`w-full relative group overflow-hidden px-4 py-3 rounded-xl font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 ${
+      whileHover={{ 
+        scale: 1.01,
+        backgroundColor: isPrimary ? undefined : "#374151",
+        y: -2
+      }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ 
+        duration: 0.3,
+        ease: [0.23, 1, 0.32, 1] // Custom cubic-bezier for a "fluid" feel
+      }}
+      className={`w-full relative group overflow-hidden px-4 py-3 rounded-xl font-medium ${
         isPrimary 
-          ? "text-white shadow-lg hover:shadow-xl shadow-[#7C5CFF]/20" 
-          : "bg-[#1F2937] text-white hover:bg-[#374151] border border-white/10"
+          ? "text-white shadow-lg shadow-[#7C5CFF]/20" 
+          : "bg-[#1F2937] text-white border border-white/10"
       } ${className}`}
     >
-      {isPrimary && <div className="absolute inset-0 bg-gradient-to-r from-[#7C5CFF] to-[#2563EB] opacity-90 group-hover:opacity-100 transition-opacity"></div>}
+      {isPrimary && (
+        <motion.div 
+          className="absolute inset-0 bg-gradient-to-r from-[#7C5CFF] to-[#2563EB]"
+          initial={{ opacity: 0.9 }}
+          whileHover={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        />
+      )}
       <div className="relative z-10 flex items-center justify-center gap-2">
         {Icon && <Icon size={18} />}
         {children}
       </div>
-    </button>
+    </motion.button>
   );
 };
 
@@ -76,7 +101,7 @@ const KPICard = ({ title, value, trend, icon: Icon, prefix = "", suffix = "", co
   const formattedValue = useCountUp(value, (v) => {
     if (isCurrency && v >= 1000000) return (v / 1000000).toFixed(1) + "M";
     if (isCurrency && v >= 1000) return (v / 1000).toFixed(1) + "k";
-    if (v <= 100 && suffix === "%") return v.toFixed(1);
+    if (suffix === "%" || suffix === "x") return v.toFixed(1);
     return v.toFixed(0);
   });
 
@@ -152,28 +177,95 @@ const InsightsCard = ({ insights, title = "Analyses Récentes" }: any) => (
 );
 
 const PremiumSlider = ({ label, value, onChange, min, max, format, icon: Icon }: any) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [inputValue, setInputValue] = useState(value.toString());
+
+  useEffect(() => {
+    if (!isEditing) {
+      setInputValue(value.toString());
+    }
+  }, [value, isEditing]);
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    const num = parseFloat(inputValue);
+    if (!isNaN(num)) {
+      onChange(num);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleBlur();
+    }
+    if (e.key === 'Escape') {
+      setIsEditing(false);
+      setInputValue(value.toString());
+    }
+  };
+
+  const sliderVal = Math.min(Math.max(value, min), max);
+  const percentage = (max - min) === 0 ? 0 : ((sliderVal - min) / (max - min) * 100);
+
   return (
     <div className="mb-6 last:mb-0">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 min-h-[32px]">
         <div className="flex items-center gap-2 text-gray-400">
            {Icon && <Icon size={16} />}
            <label className="text-xs font-semibold uppercase tracking-widest">{label}</label>
         </div>
-        <span className="text-sm font-bold text-[#7C5CFF] tabular-nums bg-[#7C5CFF]/10 px-3 py-1 rounded-md border border-[#7C5CFF]/20">
-          {format(value)}
-        </span>
+        
+        <AnimatePresence mode="wait">
+          {isEditing ? (
+            <motion.div 
+              key="input"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              <input 
+                autoFocus
+                type="number"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+                className="text-sm font-bold text-[#7C5CFF] tabular-nums bg-[#7C5CFF]/20 px-2 py-1 rounded-md border border-[#7C5CFF] text-right w-24 outline-none focus:ring-2 focus:ring-[#7C5CFF]/50"
+              />
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="value"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setIsEditing(true)}
+              className="group/value cursor-pointer flex items-center gap-2"
+            >
+              <span 
+                className="text-sm font-bold text-[#7C5CFF] tabular-nums bg-[#7C5CFF]/10 px-3 py-1 rounded-md border border-[#7C5CFF]/20 hover:bg-[#7C5CFF]/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                title="Cliquer pour saisir une valeur"
+              >
+                {format(value)}
+                <Pencil size={10} className="opacity-0 group-hover/value:opacity-100 transition-opacity" />
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       <div className="relative pt-1 pb-2 group">
         <input
           type="range"
           min={min}
           max={max}
-          step={(max-min)/100}
-          value={value}
+          step={(max-min)/100 || 1}
+          value={sliderVal}
           onChange={(e) => onChange(parseFloat(e.target.value))}
           className="slider-custom"
           style={{
-             background: `linear-gradient(to right, #7C5CFF ${(value-min)/(max-min)*100}%, rgba(255,255,255,0.1) ${(value-min)/(max-min)*100}%)`
+             background: `linear-gradient(to right, #7C5CFF ${percentage}%, rgba(255,255,255,0.1) ${percentage}%)`
           }}
         />
       </div>
@@ -186,9 +278,11 @@ const PremiumSlider = ({ label, value, onChange, min, max, format, icon: Icon }:
 
 const DashboardView = () => {
   const store = useSimulationStore();
-  const state = store as any; // easy access
+  const state = store as any; 
   const results = runSimulation(state, state.activeScenario);
   
+  const score = useCountUp(results.roivaScore);
+
   // Fake chart data based on net profit
   const data = [
     { name: 'Jan', val: results.netProfit * 0.1 },
@@ -204,18 +298,41 @@ const DashboardView = () => {
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
       className="space-y-6 pb-28 max-w-lg mx-auto w-full pt-20 px-6"
     >
-      <header>
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Aperçu Financier</p>
-        <div className="flex items-end gap-3 mb-1">
-          <h1 className="text-4xl lg:text-5xl font-extrabold text-white tabular-nums tracking-tighter">
-            €{(results.revenue / 1000000).toFixed(1)}M
-          </h1>
-          <div className="mb-1 flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-bold border border-emerald-500/20">
-            <TrendingUp size={12} strokeWidth={3} />
-            +{(state.annualGrowth).toFixed(1)}%
+      <header className="flex justify-between items-start">
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-2 pr-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Aperçu Financier</p>
+            <span className="text-[10px] text-[#7C5CFF] font-bold px-2 py-0.5 bg-[#7C5CFF]/10 rounded border border-[#7C5CFF]/20 uppercase">{store.productName}</span>
           </div>
+          <div className="flex items-end gap-3 mb-1">
+            <h1 className="text-4xl lg:text-5xl font-extrabold text-white tabular-nums tracking-tighter">
+              €{(results.revenue / 1000000).toFixed(1)}M
+            </h1>
+            <div className="mb-1 flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-bold border border-emerald-500/20">
+              <TrendingUp size={12} strokeWidth={3} />
+              +{(state.annualGrowth).toFixed(1)}%
+            </div>
+          </div>
+          <p className="text-sm text-gray-500">Revenus projetés ({state.activeScenario})</p>
         </div>
-        <p className="text-sm text-gray-500 mb-6">Revenus projetés (Scénario {state.activeScenario})</p>
+        
+        {/* Roïva Score Gauge */}
+        <div className="relative flex flex-col items-center">
+            <div className="w-16 h-16 rounded-full border-4 border-[#7C5CFF]/20 flex items-center justify-center relative">
+               <svg className="absolute inset-0 w-full h-full -rotate-90">
+                 <circle
+                   cx="32" cy="32" r="28"
+                   fill="none" stroke="#7C5CFF"
+                   strokeWidth="4"
+                   strokeDasharray={175.8}
+                   strokeDashoffset={175.8 * (1 - results.roivaScore / 100)}
+                   className="transition-all duration-1000 ease-out"
+                 />
+               </svg>
+               <span className="text-lg font-black text-white">{score}</span>
+            </div>
+            <span className="text-[8px] font-bold text-[#7C5CFF] mt-1 tracking-tighter uppercase">Roïva Score</span>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-4">
@@ -278,6 +395,15 @@ const DashboardView = () => {
 
 const SimulationView = () => {
   const store = useSimulationStore();
+  const results = runSimulation(store as any, store.activeScenario);
+
+  // Dynamic AI Narrative logic (Heuristic based for now)
+  const getAiNarrative = () => {
+    if (results.roi > 40) return "Performance exceptionnelle. Votre capital travaille dur.";
+    if (results.roivaScore < 30) return "Attention, le risque de liquidité est élevé avec ces paramètres.";
+    if (store.marketingExpense > 25) return "Le coût d'acquisition pourrait étouffer votre marge nette.";
+    return "Structure de coût équilibrée. Continuez à optimiser le volume.";
+  };
   
   return (
     <motion.div 
@@ -289,6 +415,12 @@ const SimulationView = () => {
         <h1 className="text-2xl font-bold text-white tracking-tight mb-4">Labo de Simulation</h1>
         <ScenarioToggle value={store.activeScenario} setValue={store.setActiveScenario} />
       </header>
+
+      {/* AI Pulse Narrative */}
+      <div className="bg-[#7C5CFF]/5 border border-[#7C5CFF]/20 rounded-xl p-3 flex items-center gap-3">
+         <div className="w-2 h-2 rounded-full bg-[#7C5CFF] animate-pulse shadow-[0_0_8px_#7C5CFF]"></div>
+         <p className="text-[10px] font-medium text-gray-300 italic">{getAiNarrative()}</p>
+      </div>
 
       <Card className="p-6">
         <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-3">
@@ -326,53 +458,149 @@ const SimulationView = () => {
           <BarChart3 className="text-[#F59E0B]" size={16} /> Structure des Coûts
         </h3>
         <PremiumSlider 
-           label="Coût Unitaire (COGS)" value={store.unitCost} min={20} max={1000} 
+           label="Coût de revient" value={store.unitCost} min={20} max={1000} 
            format={(v: number) => `€${v.toFixed(0)}`} onChange={store.setUnitCost}
+           icon={DollarSign}
         />
+        <PremiumSlider 
+           label="Frais Fixes Mensuels" value={store.fixedCosts} min={0} max={100000} 
+           format={(v: number) => `€${v.toLocaleString()}`} onChange={store.setFixedCosts}
+           icon={Wallet}
+        />
+        <div className="flex flex-wrap items-center gap-2 mb-6 -mt-2 ml-1">
+          <div className={`text-[10px] font-bold px-2 py-0.5 rounded ${store.unitPrice - store.unitCost > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
+            Marge brute: €{(store.unitPrice - store.unitCost).toFixed(0)} / u.
+          </div>
+          <div className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">
+            Fixe Annuel: €{(store.fixedCosts * 12).toLocaleString()}
+          </div>
+        </div>
         <PremiumSlider 
            label="Dépenses Marketing" value={store.marketingExpense} min={0} max={50} 
            format={(v: number) => `${v.toFixed(1)}%`} onChange={store.setMarketingExpense}
         />
+        <PremiumSlider 
+           label="Ops & Logistique" value={store.logisticsOps} min={0} max={30} 
+           format={(v: number) => `${v.toFixed(1)}%`} onChange={store.setLogisticsOps}
+        />
+        <PremiumSlider 
+           label="Stock de Sécurité" value={store.safetyStock} min={0} max={120} 
+           format={(v: number) => `${v.toFixed(0)} j.`} onChange={store.setSafetyStock}
+        />
+      </Card>
+
+      <Card className="p-6 border-[#10B981]/20">
+        <h3 className="text-sm font-bold text-white mb-6 flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <PieChart className="text-[#10B981]" size={16} /> Analyse des Marges
+          </div>
+          <div className={`text-[10px] font-black px-2 py-0.5 rounded ${results.margin > 20 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+            {results.margin > 20 ? 'SANTÉ : EXCELLENTE' : 'SANTÉ : À SURVEILLER'}
+          </div>
+        </h3>
+        
+        <div className="space-y-4">
+          <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+             <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#10B981]"></div>
+                <span className="text-xs text-gray-400 font-medium">Marge Brute Unit.</span>
+             </div>
+             <div className="text-right">
+                <p className="text-sm font-bold text-white">€{(store.unitPrice - store.unitCost).toFixed(0)}</p>
+                <p className="text-[10px] text-emerald-400 font-bold tracking-tighter">
+                  {(((store.unitPrice - store.unitCost) / store.unitPrice) * 100).toFixed(1)}%
+                </p>
+             </div>
+          </div>
+
+          <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
+             <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#3B82F6]"></div>
+                <span className="text-xs text-gray-400 font-medium">Marge Nette Unit.</span>
+             </div>
+             <div className="text-right">
+                <p className="text-sm font-bold text-white">€{(results.netProfit / (store.volume || 1)).toFixed(0)}</p>
+                <p className="text-[10px] text-blue-400 font-bold tracking-tighter">
+                   {results.margin.toFixed(1)}%
+                </p>
+             </div>
+          </div>
+
+          <div className="pt-2">
+            <div className="flex justify-between text-[10px] uppercase font-black tracking-widest text-gray-500 mb-2 px-1">
+              <span>Conversion Revenu</span>
+              <span>Profit</span>
+            </div>
+            <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden flex">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.max(0, results.margin)}%` }}
+                className="bg-gradient-to-r from-[#3B82F6] to-[#10B981]"
+              />
+            </div>
+            <p className="text-[9px] text-gray-500 italic mt-2 leading-relaxed">
+              Pour chaque <span className="text-white">€1.00</span> de vente, vous conservez <span className="text-white">€{(results.margin / 100).toFixed(2)}</span> après tous les frais.
+            </p>
+          </div>
+        </div>
       </Card>
       
-      <Card className="p-6 mb-28">
-        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2 border-b border-white/10 pb-3">
-          <Scale className="text-[#3B82F6]" size={16} /> Analyse de Sensibilité (ROI)
-        </h3>
-        <p className="text-xs text-gray-400 mb-6 font-medium">Impact des variations de prix et de coûts sur votre ROI projeté.</p>
-        <div className="grid grid-cols-4 gap-1 text-[10px] text-center font-medium bg-[#111827] rounded-xl border border-white/5 overflow-hidden">
-           <div className="flex items-center justify-center text-gray-500 bg-white/5 p-2 font-bold tracking-wider">COÛT \ PRIX</div>
-           <div className="flex items-center justify-center text-gray-400 bg-white/5 p-2 font-bold">-10%</div>
-           <div className="flex items-center justify-center text-gray-400 bg-white/5 p-2 font-bold">BASE</div>
-           <div className="flex items-center justify-center text-gray-400 bg-white/5 p-2 font-bold">+10%</div>
-           
-           {[-0.1, 0, 0.1].map(costShift => {
-              const baseRoi = runSimulation(store as any, store.activeScenario).roi;
-              return (
-                <React.Fragment key={costShift}>
-                   <div className="flex items-center justify-center text-gray-400 py-3 bg-white/5">
-                     {costShift > 0 ? "+10%" : costShift < 0 ? "-10%" : "Base"}
-                   </div>
-                   {[-0.1, 0, 0.1].map(priceShift => {
-                      const modifiedState = { ...store, unitPrice: store.unitPrice * (1 + priceShift), unitCost: store.unitCost * (1 + costShift) };
-                      const cellRoi = runSimulation(modifiedState as any, store.activeScenario).roi;
-                      const diff = cellRoi - baseRoi;
-                      
-                      let cellClass = "bg-[#111827] text-gray-300";
-                      if (diff > 5) cellClass = "bg-[#10B981]/20 text-[#10B981] font-bold";
-                      else if (diff > 0.1) cellClass = "bg-[#10B981]/10 text-[#10B981]";
-                      else if (diff < -5) cellClass = "bg-[#EF4444]/20 text-[#EF4444] font-bold";
-                      else if (diff < -0.1) cellClass = "bg-[#EF4444]/10 text-[#EF4444]";
-
-                      return (
-                        <div key={`${costShift}-${priceShift}`} className={`flex items-center justify-center py-3 tabular-nums ${cellClass}`}>
-                          {cellRoi.toFixed(1)}%
-                        </div>
-                      )
-                   })}
-                </React.Fragment>
-              )
-           })}
+      <Card className="p-0 overflow-hidden mb-28 border-[#3B82F6]/30">
+        <div className="p-5 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Scale className="text-[#3B82F6]" size={18} />
+            <h3 className="font-semibold text-white">Matrice de Sensibilité</h3>
+          </div>
+          <span className="text-[10px] text-[#3B82F6] font-bold px-2 py-0.5 bg-[#3B82F6]/10 rounded border border-[#3B82F6]/20 uppercase">Impact ROI</span>
+        </div>
+        <div className="p-5">
+          <p className="text-xs text-gray-400 mb-4 font-medium leading-relaxed">Simulation de l'impact combiné des variations de 10% sur le <span className="text-white">Prix</span> et le <span className="text-white">Coût</span>.</p>
+          <div className="grid grid-cols-4 gap-px bg-white/5 rounded-xl border border-white/10 overflow-hidden">
+             <div className="flex items-center justify-center text-[9px] text-gray-500 bg-[#0F172A] p-2 font-black tracking-widest border-r border-b border-white/5 uppercase">Coût \ Prix</div>
+             <div className="flex items-center justify-center text-[10px] text-gray-400 bg-[#0F172A] p-2 font-bold border-b border-white/5">-10%</div>
+             <div className="flex items-center justify-center text-[10px] text-gray-400 bg-[#0F172A] p-2 font-bold border-b border-white/5">BASE</div>
+             <div className="flex items-center justify-center text-[10px] text-gray-400 bg-[#0F172A] p-2 font-bold border-b border-white/5">+10%</div>
+             
+             {[-0.1, 0, 0.1].map(costShift => {
+                const baseRoi = runSimulation(store as any, store.activeScenario).roi;
+                return (
+                  <React.Fragment key={costShift}>
+                     <div className="flex items-center justify-center text-[10px] text-gray-400 py-3 bg-[#0F172A] border-r border-white/5 font-bold uppercase tracking-tighter">
+                       {costShift > 0 ? "+10%" : costShift < 0 ? "-10%" : "Base"}
+                     </div>
+                     {[-0.1, 0, 0.1].map(priceShift => {
+                        const modifiedState = { ...store, unitPrice: store.unitPrice * (1 + priceShift), unitCost: store.unitCost * (1 + costShift) };
+                        const cellRoi = runSimulation(modifiedState as any, store.activeScenario).roi;
+                        const diff = cellRoi - baseRoi;
+                        const isCenter = costShift === 0 && priceShift === 0;
+                        
+                        let cellClass = "bg-[#111827] text-gray-400";
+                        if (isCenter) cellClass = "bg-[#7C5CFF]/10 text-white font-black ring-1 ring-inset ring-[#7C5CFF]/30 z-10";
+                        else if (diff > 5) cellClass = "bg-emerald-500/20 text-emerald-400 font-bold";
+                        else if (diff > 0) cellClass = "bg-emerald-500/5 text-emerald-500/70";
+                        else if (diff < -5) cellClass = "bg-rose-500/20 text-rose-400 font-bold";
+                        else if (diff < 0) cellClass = "bg-rose-500/5 text-rose-500/70";
+  
+                        return (
+                          <motion.div 
+                            key={`${costShift}-${priceShift}`} 
+                            initial={false}
+                            animate={{ opacity: 1 }}
+                            className={`flex flex-col items-center justify-center py-3 tabular-nums transition-colors duration-300 ${cellClass} border-b border-r border-white/5`}
+                          >
+                            <span className="text-[11px]">{cellRoi.toFixed(1)}%</span>
+                            {!isCenter && (
+                              <span className={`text-[8px] mt-0.5 ${diff > 0 ? 'text-emerald-400/60' : 'text-rose-400/60'}`}>
+                                {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+                              </span>
+                            )}
+                          </motion.div>
+                        )
+                     })}
+                  </React.Fragment>
+                )
+             })}
+          </div>
         </div>
       </Card>
 
@@ -380,16 +608,22 @@ const SimulationView = () => {
       <div className="fixed bottom-[5.5rem] left-0 right-0 p-4 z-40 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/90 to-transparent pointer-events-none flex justify-center">
          <div className="bg-[#111827] border border-[#7C5CFF]/30 shadow-[0_0_30px_rgba(124,92,255,0.15)] rounded-2xl p-4 flex items-center justify-between w-full max-w-lg pointer-events-auto">
             <div>
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1">ROI PROJETÉ</p>
-              <div className="flex items-center gap-2">
-                 <span className="text-2xl font-bold text-white tabular-nums">{runSimulation(store as any, store.activeScenario).roi.toFixed(1)}%</span>
-                 <TrendingUp className="text-[#10B981]" size={16} />
+              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1">ROI</p>
+              <div className="flex items-center gap-1">
+                 <span className="text-lg font-bold text-white tabular-nums">{results.roi.toFixed(1)}%</span>
               </div>
             </div>
-            <div className="w-px h-10 bg-white/10"></div>
+            <div className="w-px h-10 bg-white/10 mx-1"></div>
+            <div>
+              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1">MARGE</p>
+              <div className="flex items-center gap-1">
+                 <span className="text-lg font-bold text-[#10B981] tabular-nums">{results.margin.toFixed(1)}%</span>
+              </div>
+            </div>
+            <div className="w-px h-10 bg-white/10 mx-1"></div>
             <div className="text-right">
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1">BÉNÉFICE NET</p>
-              <p className="text-xl font-bold text-[#7C5CFF] tabular-nums">€{(runSimulation(store as any, store.activeScenario).netProfit / 1000000).toFixed(2)}M</p>
+              <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1">PROFIT</p>
+              <p className="text-lg font-bold text-[#7C5CFF] tabular-nums">€{(results.netProfit / 1000000).toFixed(2)}M</p>
             </div>
          </div>
       </div>
@@ -401,6 +635,55 @@ const SimulationView = () => {
 const ScenariosView = () => {
   const store = useSimulationStore();
   const scenarios = generateScenarios(store as any);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [compareWith, setCompareWith] = useState<ScenarioType | null>(null);
+
+  const exportPDF = () => {
+    setIsExporting(true);
+    setTimeout(() => {
+      const doc = new jsPDF();
+      
+      // En-tête
+      doc.setFontSize(22);
+      doc.setTextColor(124, 92, 255); // Roiva violet
+      doc.text(`ROÏVA - ${store.productName}`, 14, 20);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Analyse : ${store.productName} - ${store.activeScenario}`, 14, 30);
+      
+      // Paramètres
+      doc.setFontSize(12);
+      doc.setTextColor(30, 30, 30);
+      doc.text(`Produit: ${store.productName}`, 14, 45);
+      doc.text(`Capital Initial: ${(store.initialCapital / 1000000).toFixed(2)}M €`, 14, 52);
+      doc.text(`Prix Unitaire: ${store.unitPrice} €`, 14, 59);
+      doc.text(`Volume: ${store.volume} unites`, 14, 66);
+      doc.text(`Cout Unitaire: ${store.unitCost} €`, 85, 52);
+      doc.text(`Croissance Annuelle: ${store.annualGrowth}%`, 85, 59);
+      
+      // Tableau des Scénarios
+      autoTable(doc, {
+        startY: 75,
+        headStyles: { fillColor: [124, 92, 255] },
+        head: [['Scenario', 'Revenus', 'Couts', 'Benefice Net', 'ROI']],
+        body: (["Optimiste", "Réaliste", "Pessimiste"] as ScenarioType[]).map(s => {
+          const res = scenarios[s];
+          return [
+            s,
+            `${(res.revenue / 1000000).toFixed(2)}M €`,
+            `${(res.totalCosts / 1000000).toFixed(2)}M €`,
+            `${(res.netProfit / 1000000).toFixed(2)}M €`,
+            `${res.roi.toFixed(1)}%`
+          ]
+        }),
+      });
+
+      doc.save(`roiva_${store.productName.replace(/\s+/g, '_').toLowerCase()}.pdf`);
+      setIsExporting(false);
+    }, 100);
+  };
   
   const chartData = [
     { name: 'T1', Pessimiste: scenarios.Pessimiste.netProfit * 0.2, Réaliste: scenarios.Réaliste.netProfit * 0.25, Optimiste: scenarios.Optimiste.netProfit * 0.3 },
@@ -456,6 +739,87 @@ const ScenariosView = () => {
       </Card>
 
       <Card>
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-sm font-bold text-white uppercase tracking-widest text-gray-400">Comparaison Directe</h3>
+          <div className="flex gap-2">
+            {(["Optimiste", "Réaliste", "Pessimiste"] as ScenarioType[]).map((type) => (
+              <button 
+                key={type}
+                onClick={() => setCompareWith(compareWith === type ? null : type)}
+                disabled={store.activeScenario === type}
+                className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                  compareWith === type 
+                    ? "bg-[#7C5CFF]/20 text-[#7C5CFF] border border-[#7C5CFF]" 
+                    : store.activeScenario === type
+                      ? "opacity-30 cursor-not-allowed bg-gray-800 text-gray-500 border border-transparent"
+                      : "bg-white/5 text-gray-400 border border-transparent hover:bg-white/10"
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {compareWith ? (
+            <motion.div 
+              key="comparison"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-6 overflow-hidden"
+            >
+              {[
+                { label: 'Revenu Annuel', key: 'revenue', format: (v: number) => `€${(v / 1000000).toFixed(2)}M` },
+                { label: 'Bénéfice Net', key: 'netProfit', format: (v: number) => `€${(v / 1000000).toFixed(2)}M` },
+                { label: 'ROI', key: 'roi', format: (v: number) => `${v.toFixed(1)}%` },
+                { label: 'Score ROÏVA', key: 'roivaScore', format: (v: number) => `${v}/100` },
+              ].map((metric) => {
+                const val1 = scenarios[store.activeScenario][metric.key as keyof typeof scenarios["Réaliste"]];
+                const val2 = scenarios[compareWith][metric.key as keyof typeof scenarios["Réaliste"]];
+                const diff = (val1 as number) - (val2 as number);
+                const percDiff = (diff / (val2 as number)) * 100;
+
+                return (
+                  <div key={metric.key} className="border-b border-white/5 last:border-0 pb-4 last:pb-0">
+                    <div className="flex justify-between items-center mb-2">
+                       <span className="text-xs text-gray-400 font-medium">{metric.label}</span>
+                       <div className={`text-[10px] font-bold px-2 py-0.5 rounded ${diff >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                          {diff >= 0 ? '+' : ''}{metric.format(diff)} ({percDiff > 0 ? '+' : ''}{percDiff.toFixed(1)}%)
+                       </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white/5 rounded-lg p-2 border border-white/5">
+                        <p className="text-[8px] text-gray-500 uppercase font-bold tracking-tighter mb-1">{store.activeScenario}</p>
+                        <p className="text-sm font-bold text-white">{metric.format(val1 as number)}</p>
+                      </div>
+                      <div className="bg-[#7C5CFF]/5 rounded-lg p-2 border border-[#7C5CFF]/20">
+                        <p className="text-[8px] text-[#7C5CFF] uppercase font-bold tracking-tighter mb-1">{compareWith}</p>
+                        <p className="text-sm font-bold text-white">{metric.format(val2 as number)}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="py-8 text-center"
+            >
+              <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-3">
+                 <Scale className="text-gray-600" size={20} />
+              </div>
+              <p className="text-xs text-gray-500 italic">Sélectionnez un deuxième scénario pour comparer les indicateurs clés.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Card>
+
+      <Card>
         <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-widest text-gray-400">Variance de Trésorerie</h3>
         <div className="space-y-4">
           {(["Optimiste", "Réaliste", "Pessimiste"] as ScenarioType[]).map((type) => (
@@ -473,18 +837,553 @@ const ScenariosView = () => {
         </div>
       </Card>
 
-      <div className="space-y-3">
-        <Button icon={CheckCircle}>
-          Appliquer ce modèle au Budget
+      <div className="space-y-4 mt-6">
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest px-1">Rapport & Bon de Commande</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+            <button 
+              onClick={() => setShowPreview(true)}
+              className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-xl transition-all border border-white/10 group"
+            >
+              <Eye size={16} className="text-[#7C5CFF] group-hover:scale-110 transition-transform" />
+              <span className="text-xs">Prévisualiser</span>
+            </button>
+          </motion.div>
+
+          <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+            <button 
+              onClick={exportPDF}
+              disabled={isExporting}
+              className={`w-full flex items-center justify-center gap-2 bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-[#7C5CFF]/10 ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {isExporting ? (
+                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Download size={16} />
+              )}
+              <span className="text-xs">{isExporting ? '...' : 'PDF'}</span>
+            </button>
+          </motion.div>
+        </div>
+
+        <Button icon={CheckCircle} onClick={() => {
+           const name = prompt("Nom de la sauvegarde :");
+           if (name) store.saveSnapshot(name);
+        }}>
+          Enregistrer Snapshot (Comparatif)
         </Button>
-        <Button icon={Download} variant="secondary">
-          Exporter le Rapport PDF
-        </Button>
+        
+        {store.snapshots.length > 0 && (
+          <div className="mt-8 space-y-4">
+             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Historique & Comparaison</h3>
+             <div className="space-y-2">
+                {store.snapshots.map(s => (
+                  <div key={s.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center group">
+                     <div>
+                       <p className="text-sm font-bold text-white">{s.name}</p>
+                       <p className="text-[10px] text-gray-500">{s.date}</p>
+                     </div>
+                     <button onClick={() => store.deleteSnapshot(s.id)} className="opacity-0 group-hover:opacity-100 p-2 text-gray-500 hover:text-red-400 transition-all">
+                       <Zap size={14} />
+                     </button>
+                  </div>
+                ))}
+             </div>
+          </div>
+        )}
       </div>
+
+      <AnimatePresence>
+        {showPreview && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPreview(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0B0F1A] border border-white/10 w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col z-10 relative"
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#7C5CFF]/20 rounded-xl flex items-center justify-center">
+                    <FileText className="text-[#7C5CFF]" size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white leading-tight">Bon de Commande</h2>
+                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mt-0.5">Visualisation avant export</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowPreview(false)}
+                  className="p-2 hover:bg-white/5 rounded-full text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Document Container */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-12 bg-gray-100">
+                <div className="max-w-3xl mx-auto bg-white shadow-2xl p-8 md:p-16 text-black font-sans min-h-[1000px] flex flex-col">
+                  {/* Document Header */}
+                  <div className="flex justify-between items-start pb-12 border-b-2 border-black/5 mb-12">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 text-[#7C5CFF]">
+                        <Activity size={32} />
+                        <h1 className="text-3xl font-black tracking-tighter">ROÏVA</h1>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Émetteur</p>
+                        <p className="font-bold text-sm">ROÏVA Financial Systems</p>
+                        <p className="text-xs text-gray-500">Analytics & Simulation Dashboard</p>
+                      </div>
+                    </div>
+                    <div className="text-right space-y-4">
+                      <div className="inline-block px-3 py-1 bg-black text-white text-[10px] font-black uppercase tracking-widest rounded">
+                        Bon de Commande
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Référence</p>
+                        <p className="font-bold text-sm">BC-{Math.random().toString(36).substr(2, 6).toUpperCase()}</p>
+                        <p className="text-xs text-gray-500">Date: {new Date().toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Main Content */}
+                  <div className="flex-1 space-y-10">
+                    <div className="grid grid-cols-2 gap-12">
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Objet de la simulation</p>
+                        <p className="font-bold text-2xl tracking-tight">{store.productName}</p>
+                        <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-[#7C5CFF]/10 text-[#7C5CFF] rounded text-[10px] font-bold">
+                           Scénario {store.activeScenario}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Prix Unitaire</p>
+                          <p className="font-bold text-lg">€{store.unitPrice}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Volume</p>
+                          <p className="font-bold text-lg">{store.volume.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Récapitulatif Financier Annuel</p>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-end pb-3 border-b border-gray-200">
+                          <span className="text-sm font-bold text-gray-600">Revenu Total Estimé</span>
+                          <span className="text-xl font-black">€{(scenarios[store.activeScenario].revenue).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-end pb-3 border-b border-gray-200">
+                          <span className="text-sm font-bold text-gray-600">Bénéfice Net</span>
+                          <span className="text-xl font-black">€{(scenarios[store.activeScenario].netProfit).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-end">
+                          <span className="text-sm font-bold text-[#7C5CFF]">Performance ROI</span>
+                          <span className="text-3xl font-black text-[#7C5CFF]">{scenarios[store.activeScenario].roi.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Confirmation du Score</p>
+                      <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 rounded-full border-4 border-[#7C5CFF] flex items-center justify-center">
+                           <span className="text-xl font-black">{scenarios[store.activeScenario].roivaScore}</span>
+                        </div>
+                        <div className="flex-1 text-xs text-gray-500 font-medium italic">
+                          Le score ROÏVA de {scenarios[store.activeScenario].roivaScore}/100 indique une viabilité {scenarios[store.activeScenario].roivaScore > 70 ? 'excellente' : scenarios[store.activeScenario].roivaScore > 40 ? 'modérée' : 'critique'} pour ce projet dans les conditions actuelles.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Document Footer */}
+                  <div className="mt-20 pt-8 border-t-2 border-black/5 text-center">
+                    <p className="text-[9px] text-gray-400 uppercase font-black tracking-[0.3em] mb-4">Document de Simulation Officiel</p>
+                    <div className="flex justify-center gap-12 opacity-30 grayscale mb-6">
+                       <Activity size={24} />
+                       <Shield size={24} />
+                       <Target size={24} />
+                    </div>
+                    <p className="text-[8px] text-gray-300 max-w-sm mx-auto leading-relaxed">
+                      Ce document est généré dynamiquement et ne peut être utilisé comme preuve fiscale. 
+                      Les données sont fournies à titre indicatif selon les algorithmes de ROÏVA Systems V2.0.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Bar */}
+              <div className="p-6 border-t border-white/5 bg-[#0B0F1A] flex gap-4">
+                <button 
+                  onClick={() => setShowPreview(false)}
+                  className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-all border border-white/10 text-sm"
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowPreview(false);
+                    exportPDF();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white font-bold py-3 rounded-xl transition-all shadow-lg text-sm"
+                >
+                  <Download size={16} />
+                  Confirmer & Télécharger le PDF
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
+
+const PeriodToggle = ({ value, setValue }: { value: PeriodType, setValue: (val: PeriodType) => void }) => {
+  const options: PeriodType[] = ["Semaine", "Mois", "Trimestre", "Année"];
+  return (
+    <div className="flex bg-[#111827] border border-white/10 rounded-xl p-1 relative shadow-inner">
+      {options.map((opt) => {
+        const isActive = value === opt;
+        return (
+          <button
+            key={opt}
+            onClick={() => setValue(opt)}
+            className={`flex-1 py-1 lg:py-2 text-[10px] lg:text-xs font-semibold rounded-lg z-10 transition-all ${
+              isActive ? "text-white" : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            {opt === "Semaine" ? "Abdou Madar" : opt}
+          </button>
+        );
+      })}
+      <div 
+        className="absolute top-1 bottom-1 w-[calc(25%-4px)] bg-[#7C5CFF] rounded-lg transition-transform duration-300 ease-out shadow-lg"
+        style={{ transform: `translateX(${options.indexOf(value) * 100}%)` }}
+      />
+    </div>
+  );
+};
+
+const SalesVelocityToggle = ({ value, setValue }: { value: "Semaine" | "Mois", setValue: (val: "Semaine" | "Mois") => void }) => {
+  const options: ("Semaine" | "Mois")[] = ["Semaine", "Mois"];
+  return (
+    <div className="flex bg-[#111827] border border-white/10 rounded-xl p-1 relative shadow-inner w-full max-w-[200px]">
+      {options.map((opt) => {
+        const isActive = value === opt;
+        return (
+          <button
+            key={opt}
+            onClick={() => setValue(opt)}
+            className={`flex-1 py-1 text-[10px] font-semibold rounded-lg z-10 transition-all ${
+              isActive ? "text-white" : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            {opt}
+          </button>
+        );
+      })}
+      <div 
+        className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#7C5CFF] rounded-lg transition-transform duration-300 ease-out shadow-lg"
+        style={{ transform: `translateX(${options.indexOf(value) * 100}%)` }}
+      />
+    </div>
+  );
+};
+
+const StockView = () => {
+  const store = useSimulationStore();
+  const results = runSimulation(store as any, store.activeScenario);
+  
+  const isSafetyStockCritical = results.averageStock < results.recommendedMinStock;
+  const isCoverageCritical = results.stockDurationDays < 15; // Moins de 15 jours
+  const isCritical = isSafetyStockCritical || isCoverageCritical;
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+      className="space-y-6 pb-28 max-w-lg mx-auto w-full pt-20 px-6"
+    >
+      <header>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Analyse des Stocks</p>
+          <div className="flex items-center gap-2">
+            <input 
+              type="text" 
+              value={store.productName} 
+              onChange={(e) => store.setProductName(e.target.value)}
+              className="bg-[#7C5CFF]/10 text-[#7C5CFF] text-[10px] font-bold px-2 py-1 rounded border border-[#7C5CFF]/30 outline-none focus:ring-1 focus:ring-[#7C5CFF] w-32"
+              placeholder="Nom du produit..."
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3 mb-4">
+          <h1 className="text-2xl font-bold text-white tracking-tight">Gestion des Niveaux</h1>
+          {isCritical && (
+            <motion.div 
+              initial={{ scale: 0 }} animate={{ scale: 1 }}
+              className="px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] font-black uppercase rounded border border-rose-500/30 flex items-center gap-1"
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+              Alerte
+            </motion.div>
+          )}
+        </div>
+        <PeriodToggle value={store.periodType} setValue={store.setPeriodType} />
+      </header>
+
+      <AnimatePresence>
+        {(isSafetyStockCritical || isCoverageCritical) && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-2">
+              {isSafetyStockCritical && (
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 flex items-start gap-3">
+                  <AlertTriangle size={16} className="text-rose-500 mt-0.5" />
+                  <div>
+                    <p className="text-[11px] font-bold text-rose-400 uppercase tracking-wide">Stock de sécurité rompu</p>
+                    <p className="text-[10px] text-rose-300 opacity-80">Le stock moyen est inférieur au minimum recommandé de {results.recommendedMinStock.toFixed(0)} u.</p>
+                  </div>
+                </div>
+              )}
+              {isCoverageCritical && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-3">
+                  <Zap size={16} className="text-amber-500 mt-0.5" />
+                  <div>
+                    <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wide">Couverture Faible</p>
+                    <p className="text-[10px] text-amber-300 opacity-80">Vous n'avez que {results.stockDurationDays.toFixed(0)} jours de stock. Risque d'interruption.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-3">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <TrendingUp className="text-[#10B981]" size={16} /> Vitesse de Vente
+          </h3>
+          <SalesVelocityToggle value={store.targetSalesPeriod} setValue={store.setTargetSalesPeriod} />
+        </div>
+        
+        <div className="grid grid-cols-1 gap-4 mb-6">
+          <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-4 shadow-inner">
+            <div className="flex justify-between items-center mb-3">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Saisir les ventes ({store.targetSalesPeriod.toLowerCase()})</label>
+              <div className="relative group">
+                <input 
+                  type="number"
+                  value={store.targetSales}
+                  onChange={(e) => store.setTargetSales(parseFloat(e.target.value) || 0)}
+                  className="bg-[#111827] border border-[#7C5CFF]/30 rounded-lg px-3 py-1.5 text-white font-bold text-right outline-none focus:border-[#7C5CFF] focus:ring-1 focus:ring-[#7C5CFF]/30 w-32 transition-all"
+                />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-500 pointer-events-none">u.</span>
+              </div>
+            </div>
+            <PremiumSlider 
+              label="" 
+              value={store.targetSales} 
+              min={0} max={1000} 
+              format={(v: number) => `${v.toFixed(0)} u.`}
+              onChange={store.setTargetSales}
+            />
+          </div>
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-white/5">
+          <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
+            <Boxes className="text-[#7C5CFF]" size={16} /> Niveaux de Stock
+          </h3>
+          
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1">
+                Initial ({store.periodType === 'Semaine' ? 'Abdou Madar' : store.periodType})
+              </label>
+              <div className="relative">
+                <input 
+                  type="number"
+                  value={store.initialStock}
+                  onChange={(e) => store.setInitialStock(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-lg outline-none focus:border-[#7C5CFF]/50 focus:ring-1 focus:ring-[#7C5CFF]/30 transition-all shadow-inner"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs uppercase">u.</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1">
+                Final ({store.periodType === 'Semaine' ? 'Abdou Madar' : store.periodType})
+              </label>
+              <div className="relative">
+                <input 
+                  type="number"
+                  value={store.finalStock}
+                  onChange={(e) => store.setFinalStock(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-lg outline-none focus:border-[#7C5CFF]/50 focus:ring-1 focus:ring-[#7C5CFF]/30 transition-all shadow-inner"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs uppercase">u.</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 opacity-60 hover:opacity-100 transition-opacity">
+            <PremiumSlider 
+              label={`Ajustement Fin Initial`} 
+              value={store.initialStock} 
+              min={0} max={10000} 
+              format={(v: number) => `${v.toFixed(0)} u.`}
+              onChange={store.setInitialStock}
+            />
+            <PremiumSlider 
+              label={`Ajustement Fin Final`} 
+              value={store.finalStock} 
+              min={0} max={10000} 
+              format={(v: number) => `${v.toFixed(0)} u.`}
+              onChange={store.setFinalStock}
+            />
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-4">
+        <KPICard 
+          title="Stock Recommandé" 
+          value={results.recommendedMinStock} 
+          trend={`Basé sur ${store.safetyStock} jours de sécurité`}
+          icon={Shield}
+          suffix=" u."
+          colorClass="text-[#10B981]"
+        />
+        <KPICard 
+          title="Stock Actuel (Moyen)" 
+          value={results.averageStock} 
+          trend={`(Initial + Final) / 2`}
+          icon={Boxes}
+          suffix=" u."
+          colorClass={isSafetyStockCritical ? "text-rose-400" : "text-[#7C5CFF]"}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <KPICard 
+          title="Ratio Stock" 
+          value={results.stockTurnover} 
+          trend="Stock Consommé / Moyen"
+          icon={Activity}
+          suffix="x"
+          colorClass="text-[#3B82F6]"
+        />
+        <KPICard 
+          title="Couverture (Jours)" 
+          value={results.stockDurationDays} 
+          trend="Jours restants"
+          icon={Zap}
+          suffix=" j."
+          colorClass={isCoverageCritical ? "text-rose-400" : "text-amber-400"}
+        />
+        <KPICard 
+          title="Abdou Madar (Semaine)" 
+          value={results.stockDurationWeeks} 
+          trend="Semaines de vente"
+          icon={Target}
+          suffix=" sem."
+          colorClass="text-indigo-400"
+        />
+      </div>
+
+      {isSafetyStockCritical || isCoverageCritical ? (
+        <Card className={`border-${isSafetyStockCritical ? 'rose' : 'amber'}-500/30 bg-${isSafetyStockCritical ? 'rose' : 'amber'}-500/5`}>
+          <div className="flex gap-4">
+            <div className={`w-12 h-12 rounded-2xl bg-${isSafetyStockCritical ? 'rose' : 'amber'}-500/20 flex items-center justify-center shrink-0`}>
+              <AlertTriangle className={isSafetyStockCritical ? 'text-rose-400' : 'text-amber-400'} size={24} />
+            </div>
+            <div>
+              <h3 className={`text-sm font-bold ${isSafetyStockCritical ? 'text-rose-400' : 'text-amber-400'} mb-1`}>
+                {isSafetyStockCritical ? "Risque de Rupture" : "Alerte de Stock Bas"}
+              </h3>
+              <p className={`text-xs ${isSafetyStockCritical ? 'text-rose-400/80' : 'text-amber-400/80'} leading-relaxed`}>
+                {isSafetyStockCritical 
+                  ? `Votre stock moyen (${results.averageStock.toFixed(0)} u.) est inférieur au stock de sécurité recommandé (${results.recommendedMinStock.toFixed(0)} u.).`
+                  : `Attention : votre couverture de stock est critique (${results.stockDurationDays.toFixed(0)} jours). Prévoyez un réapprovisionnement rapide.`
+                }
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <div className="flex gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+              <CheckCircle className="text-emerald-400" size={24} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-emerald-400 mb-1">Niveaux Optimaux</h3>
+              <p className="text-xs text-emerald-400/80 leading-relaxed">
+                Vos niveaux de stock couvrent vos {store.safetyStock} jours de sécurité. Votre chaîne logistique est résiliente face aux variations de demande.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <div className="pt-4">
+        <Button 
+          icon={Download} 
+          onClick={() => {
+            const doc = new jsPDF();
+            doc.setFontSize(22);
+            doc.setTextColor(124, 92, 255);
+            doc.text(`PLAN D'ACHAT - ${store.productName}`, 14, 20);
+            
+            doc.setFontSize(12);
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Généré le ${new Date().toLocaleDateString()}`, 14, 30);
+            
+            autoTable(doc, {
+              startY: 40,
+              headStyles: { fillColor: [124, 92, 255] },
+              head: [['Indicateur', 'Valeur']],
+              body: [
+                ['Produit', store.productName],
+                ['Vitesse de Vente', `${store.targetSales} u. / ${store.targetSalesPeriod.toLowerCase()}`],
+                ['Stock de Sécurité', `${store.safetyStock} jours`],
+                ['Stock Actuel (Moyen)', `${results.averageStock.toFixed(0)} u.`],
+                ['Stock Recommandé', `${results.recommendedMinStock.toFixed(0)} u.`],
+                ['Quantité à commander', `${Math.max(0, results.recommendedMinStock - results.averageStock).toFixed(0)} u.`],
+                ['Coût estimé', `${(Math.max(0, results.recommendedMinStock - results.averageStock) * store.unitCost).toFixed(2)} €`]
+              ],
+            });
+
+            doc.save(`plan_achat_${store.productName.toLowerCase()}.pdf`);
+          }}
+        >
+          Générer Plan d'Achat
+        </Button>
+      </div>
+    </motion.div>
+  );
+};
 
 const InsightsView = () => {
   return (
@@ -570,6 +1469,14 @@ const InsightsView = () => {
 // --- App ---
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const { updateLastSaved, lastSaved } = useSimulationStore();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      updateLastSaved();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [updateLastSaved]);
 
   return (
     <div className="min-h-screen bg-[#0F172A] font-sans text-gray-200 selection:bg-[#7C5CFF]/30 relative overflow-x-hidden">
@@ -586,8 +1493,16 @@ export default function App() {
           </div>
           <span className="text-xl font-bold tracking-tight text-white font-display">Roïva</span>
         </div>
-        <div className="w-8 h-8 rounded-full border border-white/20 overflow-hidden bg-white/5 shadow-sm">
-          <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop" alt="Profile" className="w-full h-full object-cover" />
+        <div className="flex items-center gap-4">
+          {lastSaved && (
+            <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-gray-500 font-medium">
+              <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+              Sauvegardé à {lastSaved}
+            </div>
+          )}
+          <div className="w-8 h-8 rounded-full border border-white/20 overflow-hidden bg-white/5 shadow-sm">
+            <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop" alt="Profile" className="w-full h-full object-cover" />
+          </div>
         </div>
       </header>
 
@@ -595,6 +1510,7 @@ export default function App() {
       <AnimatePresence mode="wait">
         {activeTab === "dashboard" && <DashboardView key="dashboard" />}
         {activeTab === "simulation" && <SimulationView key="simulation" />}
+        {activeTab === "stocks" && <StockView key="stocks" />}
         {activeTab === "scenarios" && <ScenariosView key="scenarios" />}
         {activeTab === "analyses" && <InsightsView key="analyses" />}
       </AnimatePresence>
@@ -603,25 +1519,31 @@ export default function App() {
       <nav className="fixed bottom-0 w-full z-50 bg-[#0F172A]/90 backdrop-blur-2xl border-t border-white/5 shadow-2xl flex justify-around items-center h-[5.5rem] px-2 pb-6 max-w-lg mx-auto left-0 right-0 rounded-t-3xl">
         <NavItem 
           icon={Home} 
-          label="Dashboard" 
+          label="Dash" 
           active={activeTab === "dashboard"} 
           onClick={() => setActiveTab("dashboard")} 
         />
         <NavItem 
           icon={Activity} 
-          label="Simulation" 
+          label="Simu" 
           active={activeTab === "simulation"} 
           onClick={() => setActiveTab("simulation")} 
         />
         <NavItem 
+          icon={Boxes} 
+          label="Stocks" 
+          active={activeTab === "stocks"} 
+          onClick={() => setActiveTab("stocks")} 
+        />
+        <NavItem 
           icon={Layers} 
-          label="Scénarios" 
+          label="Scéna" 
           active={activeTab === "scenarios"} 
           onClick={() => setActiveTab("scenarios")} 
         />
         <NavItem 
           icon={Sparkles} 
-          label="Analyses IA" 
+          label="IA" 
           active={activeTab === "analyses"} 
           onClick={() => setActiveTab("analyses")} 
           highlight={true}
