@@ -33,6 +33,7 @@ interface SimulationState {
   targetSales: number;
   targetSalesPeriod: "Semaine" | "Mois";
   productName: string;
+  analysisMode: 'Product' | 'Project';
   
   // App State
   activeScenario: ScenarioType;
@@ -55,6 +56,7 @@ interface SimulationState {
   setTargetSales: (val: number) => void;
   setTargetSalesPeriod: (val: "Semaine" | "Mois") => void;
   setProductName: (val: string) => void;
+  setAnalysisMode: (val: 'Product' | 'Project') => void;
   setActiveScenario: (val: ScenarioType) => void;
   updateLastSaved: () => void;
   saveSnapshot: (name: string) => void;
@@ -80,6 +82,7 @@ export const useSimulationStore = create<SimulationState>()(
       targetSales: 25,
       targetSalesPeriod: "Semaine",
       productName: "Produit Alpha",
+      analysisMode: 'Product',
       
       activeScenario: "Réaliste",
       lastSaved: null,
@@ -100,6 +103,7 @@ export const useSimulationStore = create<SimulationState>()(
       setTargetSales: (val) => set({ targetSales: val }),
       setTargetSalesPeriod: (val) => set({ targetSalesPeriod: val }),
       setProductName: (val) => set({ productName: val }),
+      setAnalysisMode: (val) => set({ analysisMode: val }),
       setActiveScenario: (val) => set({ activeScenario: val }),
       updateLastSaved: () => set({ lastSaved: new Date().toLocaleTimeString() }),
       saveSnapshot: (name) => {
