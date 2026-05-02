@@ -9,6 +9,60 @@ const multipliers: Record<ScenarioType, { rev: number, cost: number }> = {
 export const runSimulation = (data: any, scenario: ScenarioType) => {
     const mult = multipliers[scenario];
     
+    // Boutique Mode Logic
+    if (data.analysisMode === 'Boutique') {
+      const mutualTotal = (data.employees || []).length * (data.mutualInsurancePerEmployee || 0);
+      const employeeCosts = (data.employees || []).reduce((acc: number, emp: any) => acc + (emp.salary * (1 + emp.charges / 100)), 0) + mutualTotal;
+      
+      // Loan Calculation
+      let activeLoanPayment = data.loanPayment || 0;
+      if (data.loanAmount > 0 && data.loanDurationMonths > 0) {
+        const monthlyRate = (data.loanInterestRate / 100) / 12;
+        if (monthlyRate === 0) {
+          activeLoanPayment = data.loanAmount / data.loanDurationMonths;
+        } else {
+          activeLoanPayment = (data.loanAmount * monthlyRate * Math.pow(1 + monthlyRate, data.loanDurationMonths)) / 
+                            (Math.pow(1 + monthlyRate, data.loanDurationMonths) - 1);
+        }
+      }
+
+      const detailedOtherExpenses = (data.otherExpenses || []).reduce((acc: number, exp: any) => acc + (exp.amount || 0), 0);
+      const monthlyFixedCosts = (data.rent || 0) + (data.utilities || 0) + (data.taxCharges || 0) + 
+                               (data.insurance || 0) + (data.maintenance || 0) + (data.otherMiscExpenses || 0) + 
+                               activeLoanPayment + (data.vatPayment || 0) + (data.ursafGlobal || 0) +
+                               employeeCosts + detailedOtherExpenses;
+                               
+      const annualFixedCosts = monthlyFixedCosts * 12;
+      
+      const marginRatio = 1 - (1 / (data.marginCoefficient || 1));
+      const breakEvenTurnover = marginRatio > 0 ? annualFixedCosts / marginRatio : 0;
+      
+      // Target revenue (hypothetical 20% over break-even for projection)
+      const revenue = breakEvenTurnover * 1.2 * mult.rev;
+      const totalCosts = annualFixedCosts + (revenue * (1 - marginRatio)) * mult.cost;
+      const netProfit = revenue - totalCosts;
+      const roi = data.initialCapital > 0 ? (netProfit / data.initialCapital) * 100 : 0;
+      const margin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+      
+      const roiScoreB = isFinite(roi) ? Math.max(0, Math.min(100, (roi / 20) * 100)) * 0.5 : 0;
+      const marginScoreB = isFinite(margin) ? Math.max(0, Math.min(100, (margin / 25) * 100)) * 0.5 : 0;
+      const roivaScore = Math.round(roiScoreB + marginScoreB) || 0;
+
+      return { 
+        revenue, 
+        totalCosts, 
+        netProfit, 
+        roi, 
+        margin, 
+        breakEvenTurnover, 
+        monthlyFixedCosts,
+        annualFixedCosts,
+        employeeCosts,
+        loanPayment: activeLoanPayment,
+        roivaScore
+      };
+    }
+
     // Revenue calc
     const baseRevenue = data.volume * data.unitPrice;
     // apply growth over a faux 12 month period (simple projection)

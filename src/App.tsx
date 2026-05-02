@@ -5,17 +5,24 @@
 
 import { motion, AnimatePresence } from 'motion/react';
 import React, { useState, useEffect } from 'react';
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from 'recharts';
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, Line, LineChart, CartesianGrid, ReferenceLine } from 'recharts';
 import {
   FileText, Shield, Sparkles, TrendingUp, AlertTriangle, ChevronRight, Activity,
   PieChart, Home, Layers, Settings, Zap, BarChart3, Wallet, DollarSign, Target, CheckCircle, Download, Scale, Boxes, Pencil, Eye, X,
   Plus, Calculator, Info, Banknote, LifeBuoy, Mail, ShieldCheck, Gavel, Globe, ChevronDown, ChevronUp, ExternalLink,
-  BookOpen, MousePointer2, Lightbulb, ArrowRight, Info as InfoIcon, Sun, Wind, Thermometer, Clock, Calendar, History, RotateCcw, Trash2
+  BookOpen, MousePointer2, Lightbulb, ArrowRight, Info as InfoIcon, Sun, Wind, Thermometer, Clock, Calendar, History, RotateCcw, Trash2,
+  Store, Users, Building2, User, MoreHorizontal, Briefcase, HeartPulse
 } from 'lucide-react';
 import { useSimulationStore, ScenarioType, PeriodType } from './store';
 import { runSimulation, generateScenarios } from './lib/finance';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+import { auth, signInWithGoogle, logout } from './firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc, setDoc, collection, onSnapshot, query, orderBy, limit, deleteDoc } from 'firebase/firestore';
+import { db } from './firebase';
+import { handleFirestoreError, OperationType } from './lib/firebaseUtils';
 
 // --- Utils ---
 const formatCurrency = (v: number, withM = true) => {
@@ -58,9 +65,9 @@ export function useCountUp(value: number, format?: (v: number) => string) {
 
 // --- Components ---
 const Card = ({ children, className = "", bgIcon: BgIcon = Shield }: any) => (
-  <div className={`relative bg-[#0B0F1A] border border-white/10 rounded-[16px] shadow-sm p-6 card-hover overflow-hidden ${className}`}>
+  <div className={`relative bg-[var(--card)] border border-[var(--border)] rounded-[16px] shadow-sm p-6 card-hover overflow-hidden ${className} transition-colors duration-300`}>
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
-      <BgIcon size={120} className="text-[#7C5CFF]" />
+      <BgIcon size={120} className="text-[var(--primary)]" />
     </div>
     <div className="relative z-10">
       {children}
@@ -76,23 +83,23 @@ const Button = ({ children, onClick, className = "", icon: Icon, variant = "prim
       onClick={onClick}
       whileHover={{ 
         scale: 1.01,
-        backgroundColor: isPrimary ? undefined : "#374151",
-        y: -2
+        backgroundColor: isPrimary ? undefined : "var(--border)",
+        y: -1
       }}
       whileTap={{ scale: 0.98 }}
       transition={{ 
-        duration: 0.3,
-        ease: [0.23, 1, 0.32, 1] // Custom cubic-bezier for a "fluid" feel
+        duration: 0.2,
+        ease: "easeOut"
       }}
-      className={`w-full relative group overflow-hidden px-4 py-3 rounded-xl font-medium ${
+      className={`w-full relative group overflow-hidden px-4 py-3 rounded-xl font-medium transition-all ${
         isPrimary 
-          ? "text-white shadow-lg shadow-[#7C5CFF]/20" 
-          : "bg-[#1F2937] text-white border border-white/10"
+          ? "text-white shadow-lg shadow-[var(--primary)]/20" 
+          : "bg-[var(--card)] text-[var(--text)] border border-[var(--border)]"
       } ${className}`}
     >
       {isPrimary && (
         <motion.div 
-          className="absolute inset-0 bg-gradient-to-r from-[#7C5CFF] to-[#2563EB]"
+          className="absolute inset-0 bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)]"
           initial={{ opacity: 0.9 }}
           whileHover={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
@@ -106,7 +113,7 @@ const Button = ({ children, onClick, className = "", icon: Icon, variant = "prim
   );
 };
 
-const KPICard = ({ title, value, trend, icon: Icon, prefix = "", suffix = "", colorClass="text-[#7C5CFF]", isCurrency = false }: any) => {
+const KPICard = ({ title, value, trend, icon: Icon, prefix = "", suffix = "", colorClass="text-[var(--primary)]", isCurrency = false }: any) => {
   const formattedValue = useCountUp(value, (v) => {
     if (isCurrency) return formatCurrency(v).replace("€", "");
     if (suffix === "%" || suffix === "x") return v.toFixed(1);
@@ -117,7 +124,7 @@ const KPICard = ({ title, value, trend, icon: Icon, prefix = "", suffix = "", co
     <Card className="flex flex-col justify-between overflow-hidden relative group p-5">
       <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors"></div>
       <div className="flex justify-between items-start mb-2 relative z-10">
-        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">{title}</p>
+        <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wider">{title}</p>
         {Icon && <Icon className={`w-5 h-5 ${colorClass}`} strokeWidth={2.5} />}
       </div>
       <div className="relative z-10 mt-1">
@@ -125,38 +132,130 @@ const KPICard = ({ title, value, trend, icon: Icon, prefix = "", suffix = "", co
           key={value}
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="text-2xl lg:text-3xl font-bold text-white tabular-nums"
+          className="text-2xl lg:text-3xl font-bold text-[var(--text)] tabular-nums"
         >
           {prefix}{formattedValue}{suffix}
         </motion.p>
-        <p className="text-xs text-gray-500 font-medium mt-1">{trend}</p>
+        <p className="text-xs text-[var(--text-muted)] font-medium mt-1">{trend}</p>
       </div>
     </Card>
   );
 };
 
-const AnalysisModeToggle = ({ value, setValue }: { value: 'Product' | 'Project', setValue: (val: 'Product' | 'Project') => void }) => {
+const DashboardInsightCard: React.FC<{ insight: any }> = ({ insight }) => (
+  <Card className="p-5 relative overflow-hidden group hover:translate-y-[-4px] transition-all border-white/5 h-full">
+    <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors"></div>
+    <div className="flex justify-between items-start mb-3 relative z-10">
+      <p className="text-[10px] text-[var(--text-muted)] font-black uppercase tracking-widest leading-none mt-1">{insight.type || "Optimisation"}</p>
+      <div className={`p-2 rounded-xl`} style={{ backgroundColor: `${insight.color}15` }}>
+        <insight.icon size={18} style={{ color: insight.color }} strokeWidth={2.5} />
+      </div>
+    </div>
+    <div className="relative z-10">
+      <h4 className="text-sm font-black text-white leading-tight mb-2 tracking-tight">{insight.title}</h4>
+      <p className="text-[10px] text-[var(--text-muted)] font-bold leading-relaxed">{insight.desc}</p>
+    </div>
+  </Card>
+);
+
+const getDashboardInsights = (results: any) => {
+  const insights = [];
+  
+  if (results.roi > 40) {
+    insights.push({
+      title: "ROI Exceptionnel",
+      desc: "Performances nettement supérieures aux benchmarks du secteur.",
+      icon: TrendingUp,
+      color: "#10B981",
+      type: "Rentabilité"
+    });
+  } else if (results.roi > 20) {
+    insights.push({
+      title: "Rendement Solide",
+      desc: "Croissance stable et structure de coûts équilibrée.",
+      icon: Target,
+      color: "#7C5CFF",
+      type: "Rentabilité"
+    });
+  } else {
+    insights.push({
+      title: "Ajustement Requis",
+      desc: "Le rendement actuel nécessite une révision des coûts fixes.",
+      icon: AlertTriangle,
+      color: "#F59E0B",
+      type: "Vigilance"
+    });
+  }
+
+  if (results.margin > 25) {
+    insights.push({
+      title: "Marge Santé",
+      desc: "Excellente absorption des frais variables et marketing.",
+      icon: ShieldCheck,
+      color: "#10B981",
+      type: "Sécurité"
+    });
+  } else {
+    insights.push({
+      title: "Marge Pressurisée",
+      desc: "Surveillez vos coûts de revient pour protéger le profit.",
+      icon: PieChart,
+      color: "#EF4444",
+      type: "Alerte"
+    });
+  }
+
+  if (results.roivaScore > 70) {
+    insights.push({
+      title: "Modèle Robuste",
+      desc: "Forte résilience face aux variations de volume.",
+      icon: Sparkles,
+      color: "#7C5CFF",
+      type: "Solidité"
+    });
+  } else {
+    insights.push({
+      title: "Optimisation IA",
+      desc: "Ajustez vos stocks pour améliorer le score global.",
+      icon: Lightbulb,
+      color: "#F59E0B",
+      type: "IA Suggest"
+    });
+  }
+
+  return insights.slice(0, 3);
+};
+
+const AnalysisModeToggle = ({ value, setValue }: { value: 'Product' | 'Project' | 'Boutique', setValue: (val: 'Product' | 'Project' | 'Boutique') => void }) => {
   return (
-    <div className="flex bg-[#111827] border border-white/10 rounded-xl p-1 relative shadow-inner overflow-hidden">
+    <div className="flex bg-[var(--card)] border border-[var(--border)] rounded-xl p-1 relative shadow-inner overflow-hidden">
       <button
         onClick={() => setValue('Product')}
-        className={`px-4 py-1.5 text-[10px] font-bold rounded-lg z-10 transition-all ${
-          value === 'Product' ? "text-white" : "text-gray-500 hover:text-gray-300"
+        className={`px-3 py-1.5 text-[9px] font-bold rounded-lg z-10 transition-all ${
+          value === 'Product' ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
         }`}
       >
         PRODUIT
       </button>
       <button
         onClick={() => setValue('Project')}
-        className={`px-4 py-1.5 text-[10px] font-bold rounded-lg z-10 transition-all ${
-          value === 'Project' ? "text-white" : "text-gray-500 hover:text-gray-300"
+        className={`px-3 py-1.5 text-[9px] font-bold rounded-lg z-10 transition-all ${
+          value === 'Project' ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
         }`}
       >
         PROJET
       </button>
+      <button
+        onClick={() => setValue('Boutique')}
+        className={`px-3 py-1.5 text-[9px] font-bold rounded-lg z-10 transition-all ${
+          value === 'Boutique' ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
+        }`}
+      >
+        BOUTIQUE
+      </button>
       <motion.div 
-        className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-gradient-to-r from-[#7C5CFF] to-[#2563EB] rounded-lg shadow-lg"
-        animate={{ x: value === 'Product' ? 0 : '100%' }}
+        className="absolute top-1 bottom-1 w-[calc(33.33%-4px)] bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] rounded-lg shadow-lg"
+        animate={{ x: value === 'Product' ? 0 : value === 'Project' ? '100%' : '200%' }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       />
     </div>
@@ -166,7 +265,7 @@ const AnalysisModeToggle = ({ value, setValue }: { value: 'Product' | 'Project',
 const ScenarioToggle = ({ value, setValue }: { value: ScenarioType, setValue: (val: ScenarioType) => void }) => {
   const options: ScenarioType[] = ["Pessimiste", "Réaliste", "Optimiste"];
   return (
-    <div className="flex bg-[#111827] border border-white/10 rounded-xl p-1 relative shadow-inner">
+    <div className="flex bg-[var(--card)] border border-[var(--border)] rounded-xl p-1 relative shadow-inner">
       {options.map((opt) => {
         const isActive = value === opt;
         return (
@@ -174,7 +273,7 @@ const ScenarioToggle = ({ value, setValue }: { value: ScenarioType, setValue: (v
             key={opt}
             onClick={() => setValue(opt)}
             className={`flex-1 py-2 lg:py-2.5 text-xs lg:text-sm font-semibold rounded-lg z-10 transition-all ${
-              isActive ? "text-white" : "text-gray-400 hover:text-gray-200"
+              isActive ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
             }`}
           >
             {opt}
@@ -182,7 +281,7 @@ const ScenarioToggle = ({ value, setValue }: { value: ScenarioType, setValue: (v
         );
       })}
       <div 
-        className="absolute top-1 bottom-1 w-[calc(33.33%-4px)] bg-gradient-to-r from-[#7C5CFF] to-[#2563EB] rounded-lg transition-transform duration-300 ease-out shadow-lg"
+        className="absolute top-1 bottom-1 w-[calc(33.33%-4px)] bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] rounded-lg transition-transform duration-300 ease-out shadow-lg"
         style={{ transform: `translateX(${options.indexOf(value) * 100}%)` }}
       />
     </div>
@@ -312,6 +411,219 @@ const PremiumSlider = ({ label, value, onChange, min, max, format, icon: Icon }:
 
 // --- Components ---
 
+// --- Components ---
+
+const Login = () => {
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      setError("Échec de la connexion. Veuillez réessayer.");
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#0F172A] p-6 overflow-hidden">
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#7C5CFF]/10 blur-[120px] rounded-full -mr-64 -mt-64" />
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/10 blur-[120px] rounded-full -ml-64 -mb-64" />
+      
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md relative z-10"
+      >
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-[#7C5CFF]/20 rounded-3xl mb-6 border border-[#7C5CFF]/30">
+            <Activity size={40} className="text-[#7C5CFF]" />
+          </div>
+          <h1 className="text-4xl font-black text-white tracking-tighter mb-2">ROÏVA</h1>
+          <p className="text-gray-400 font-medium">Simulation Financière & Performance</p>
+        </div>
+
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-[2.5rem] p-10 shadow-3xl">
+          <h2 className="text-xl font-bold text-[var(--text)] mb-2 text-center">Bienvenue</h2>
+          <p className="text-sm text-[var(--text-muted)] text-center mb-8">Connectez-vous pour sauvegarder vos simulations et paramètres.</p>
+          
+          {error && (
+            <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-400 text-xs font-bold flex items-center gap-3">
+              <AlertTriangle size={16} />
+              {error}
+            </div>
+          )}
+
+          <button 
+            onClick={handleLogin}
+            disabled={isLoading}
+            className="w-full bg-white text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-[0.98] shadow-lg disabled:opacity-50"
+          >
+            {isLoading ? (
+              <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+            ) : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Continuer avec Google
+              </>
+            )}
+          </button>
+          
+          <div className="mt-8 flex items-center gap-4">
+            <div className="h-px flex-1 bg-[var(--border)]" />
+            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest">Sécurisé par Firebase</span>
+            <div className="h-px flex-1 bg-[var(--border)]" />
+          </div>
+        </div>
+
+        <div className="mt-10 text-center">
+          <p className="text-[10px] text-gray-500 uppercase font-bold tracking-[0.2em] mb-4">Un outil mindset rentier</p>
+          <div className="flex justify-center gap-6 opacity-20 grayscale">
+             <Activity size={20} />
+             <Shield size={20} />
+             <Target size={20} />
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const FirebaseSync = ({ user }: { user: FirebaseUser }) => {
+  const store = useSimulationStore();
+  const [isReady, setIsReady] = useState(false);
+
+  // Sync Global Settings & Inputs
+  useEffect(() => {
+    const userDocRef = doc(db, 'users', user.uid);
+    
+    // Initial fetch
+    const fetchUserData = async () => {
+      try {
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          store.setAll(docSnap.data());
+        } else {
+          // If profile doesn't exist, create it with default store values
+          const currentStore = useSimulationStore.getState();
+          // Filter out actions from the store state for firestore storage
+          const { 
+            setInitialCapital, setUnitPrice, setVolume, setAnnualGrowth, setUnitCost, 
+            setFixedCosts, setMarketingExpense, setLogisticsOps, setSafetyStock, 
+            setInitialStock, setFinalStock, setPeriodType, setTargetSales, 
+            setTargetSalesPeriod, setProductName, setAnalysisMode, setBusinessType,
+            addEmployee, removeEmployee, updateEmployee, setRent, setUtilities,
+            setTaxCharges, setInsurance, setMaintenance, setOtherMiscExpenses,
+            setMarginCoefficient, setLoanPayment, setVatPayment, setUrsafGlobal,
+            setMutualInsurancePerEmployee,
+            addOtherExpense, removeOtherExpense, updateOtherExpense,
+            setLoanAmount, setLoanInterestRate, setLoanDurationMonths, setLoanPaymentsMade,
+            setLowCoverageThreshold, setSafetyStockAlertThreshold, setThemeMode, 
+            setPrimaryColor, setSecondaryColor, setActiveScenario, updateLastSaved, 
+            saveSnapshot, deleteSnapshot, saveToHistory, loadFromHistory, 
+            deleteHistoryItem, setAll, toggleComparison, clearComparison, history, snapshots, ...persistableData 
+          } = currentStore;
+          
+          await setDoc(userDocRef, persistableData);
+        }
+        setIsReady(true);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+      }
+    };
+
+    fetchUserData();
+  }, [user.uid]);
+
+  // Sync History Subcollection
+  useEffect(() => {
+    if (!isReady) return;
+    const historyRef = collection(db, 'users', user.uid, 'history');
+    const q = query(historyRef, orderBy('timestamp', 'desc'), limit(20));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const historyItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      store.setAll({ history: historyItems });
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/history`);
+    });
+
+    return () => unsubscribe();
+  }, [user.uid, isReady]);
+
+  // Sync Snapshots Subcollection
+  useEffect(() => {
+    if (!isReady) return;
+    const snapshotsRef = collection(db, 'users', user.uid, 'snapshots');
+    const q = query(snapshotsRef, orderBy('date', 'desc'), limit(10));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const snapshots = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      store.setAll({ snapshots });
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/snapshots`);
+    });
+
+    return () => unsubscribe();
+  }, [user.uid, isReady]);
+
+  // Debounced Auto-Save of Global Settings
+  useEffect(() => {
+    if (!isReady) return;
+    
+    const { 
+        setInitialCapital, setUnitPrice, setVolume, setAnnualGrowth, setUnitCost, 
+        setFixedCosts, setMarketingExpense, setLogisticsOps, setSafetyStock, 
+        setInitialStock, setFinalStock, setPeriodType, setTargetSales, 
+        setTargetSalesPeriod, setProductName, setAnalysisMode, setBusinessType,
+        addEmployee, removeEmployee, updateEmployee, setRent, setUtilities,
+        setTaxCharges, setInsurance, setMaintenance, setOtherMiscExpenses,
+        setMarginCoefficient, setLoanPayment, setVatPayment, setUrsafGlobal,
+        setMutualInsurancePerEmployee,
+        addOtherExpense, removeOtherExpense, updateOtherExpense,
+        setLoanAmount, setLoanInterestRate, setLoanDurationMonths, setLoanPaymentsMade,
+        setLowCoverageThreshold, setSafetyStockAlertThreshold, setThemeMode, 
+        setPrimaryColor, setSecondaryColor, setActiveScenario, updateLastSaved, 
+        saveSnapshot, deleteSnapshot, saveToHistory, loadFromHistory, 
+        deleteHistoryItem, setAll, toggleComparison, clearComparison, history, snapshots, ...persistableData 
+      } = store;
+
+    const timer = setTimeout(async () => {
+      try {
+        await setDoc(doc(db, 'users', user.uid), persistableData, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [
+    store.initialCapital, store.unitPrice, store.volume, store.annualGrowth, 
+    store.unitCost, store.fixedCosts, store.marketingExpense, store.logisticsOps, 
+    store.safetyStock, store.initialStock, store.finalStock, store.periodType, 
+    store.targetSales, store.targetSalesPeriod, store.productName, store.analysisMode,
+    store.businessType, store.employees, store.rent, store.utilities, store.taxCharges,
+    store.insurance, store.maintenance, store.otherMiscExpenses, store.marginCoefficient,
+    store.loanPayment, store.vatPayment, store.ursafGlobal, store.mutualInsurancePerEmployee,
+    store.loanAmount, store.loanInterestRate, store.loanDurationMonths, store.loanPaymentsMade,
+    store.otherExpenses,
+    store.lowCoverageThreshold, store.safetyStockAlertThreshold, store.themeMode, 
+    store.primaryColor, store.secondaryColor, store.activeScenario, isReady, user.uid
+  ]);
+
+  return null;
+};
+
 const QuickAddModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   const store = useSimulationStore();
   const [localName, setLocalName] = useState(store.productName);
@@ -350,50 +662,50 @@ const QuickAddModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => vo
         initial={{ scale: 0.95, opacity: 0, y: 20 }} 
         animate={{ scale: 1, opacity: 1, y: 0 }} 
         exit={{ scale: 0.95, opacity: 0, y: 20 }} 
-        className="bg-[#0F172A] border border-white/10 w-full max-w-sm rounded-[2rem] p-8 relative z-10 shadow-3xl overflow-hidden"
+        className="bg-[var(--card)] border border-[var(--border)] w-full max-w-sm rounded-[2rem] p-8 relative z-10 shadow-3xl overflow-hidden shadow-[var(--primary)]/10"
       >
-        <div className="absolute top-0 right-0 w-32 h-32 bg-[#7C5CFF]/10 blur-[80px] -mr-16 -mt-16 rounded-full" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--primary)]/10 blur-[80px] -mr-16 -mt-16 rounded-full" />
         
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-black text-white flex items-center gap-2">
-            <Plus className="text-[#7C5CFF]" size={24} /> AJOUT PROD.
+          <h2 className="text-xl font-black text-[var(--text)] flex items-center gap-2">
+            <Plus className="text-[var(--primary)]" size={24} /> AJOUT PROD.
           </h2>
-          <button onClick={onClose} className="p-2 text-gray-500 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-2 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">
             <X size={20} />
           </button>
         </div>
 
         <div className="space-y-5">
           <div>
-            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Nom du Produit</label>
+            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-2">Nom du Produit</label>
             <input 
               type="text" 
               value={localName} 
               onChange={(e) => setLocalName(e.target.value)}
-              className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-[#7C5CFF]/50 transition-all"
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-3 text-[var(--text)] font-bold outline-none focus:border-[var(--primary)]/50 transition-all"
               placeholder="Ex: Sneakers Air"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Prix d'Achat</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-2">Prix d'Achat</label>
               <div className="relative">
                 <input 
                   type="number" 
                   value={localCost} 
                   onChange={(e) => setLocalCost(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-[#7C5CFF]/50 transition-all"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-3 text-[var(--text)] font-bold outline-none focus:border-[var(--primary)]/50 transition-all"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 font-bold">€</span>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] font-bold">€</span>
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Coefficient</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-2">Coefficient</label>
               <select 
                 value={coeff} 
                 onChange={(e) => setCoeff(parseFloat(e.target.value))}
-                className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-[#7C5CFF]/50 appearance-none transition-all"
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-3 text-[var(--text)] font-bold outline-none focus:border-[var(--primary)]/50 appearance-none transition-all"
               >
                 <option value={2}>x2 (Standard)</option>
                 <option value={2.5}>x2.5 (Bon)</option>
@@ -467,6 +779,14 @@ const DashboardView = () => {
   
   const score = useCountUp(results.roivaScore);
 
+  if (store.analysisMode === 'Boutique') {
+    return (
+      <main className="pt-24 pb-32 px-6 max-w-7xl mx-auto">
+        <BoutiqueView />
+      </main>
+    );
+  }
+
   // Fake chart data based on net profit
   const data = [
     { name: 'Jan', val: results.netProfit * 0.1 },
@@ -488,13 +808,13 @@ const DashboardView = () => {
         <div className="flex justify-between items-start">
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2 pr-4">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+              <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
                 Aperçu {store.analysisMode === 'Product' ? 'Financier' : 'du Projet'}
               </p>
-              <span className="text-[10px] text-[#7C5CFF] font-bold px-2 py-0.5 bg-[#7C5CFF]/10 rounded border border-[#7C5CFF]/20 uppercase">{store.productName}</span>
+              <span className="text-[10px] text-[var(--primary)] font-bold px-2 py-0.5 bg-[var(--primary)]/10 rounded border border-[var(--primary)]/20 uppercase">{store.productName}</span>
             </div>
             <div className="flex items-end gap-3 mb-1">
-              <h1 className="text-3xl lg:text-4xl font-extrabold text-white tabular-nums tracking-tighter">
+              <h1 className="text-3xl lg:text-4xl font-extrabold text-[var(--text)] tabular-nums tracking-tighter">
                 {formatCurrency(results.revenue)}
               </h1>
               <div className="mb-1 flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-bold border border-emerald-500/20">
@@ -502,14 +822,14 @@ const DashboardView = () => {
                 +{(state.annualGrowth).toFixed(1)}%
               </div>
             </div>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[var(--text-muted)]">
               {store.analysisMode === 'Product' ? 'Revenus projetés' : 'Chiffre d\'affaires prévisionnel'} ({state.activeScenario})
             </p>
           </div>
           
           {/* Roïva Score Gauge */}
           <div className="relative flex flex-col items-center">
-            <div className="w-16 h-16 rounded-full border-4 border-[#7C5CFF]/20 flex items-center justify-center relative">
+            <div className="w-16 h-16 rounded-full border-4 border-[var(--primary)]/20 flex items-center justify-center relative">
                <svg className="absolute inset-0 w-full h-full -rotate-90">
                  <circle
                    cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4" className="text-white/5"
@@ -520,19 +840,19 @@ const DashboardView = () => {
                    initial={{ strokeDashoffset: 175.9 }}
                    animate={{ strokeDashoffset: 175.9 - (175.9 * score) / 100 }}
                    transition={{ duration: 1.5, ease: "easeOut" }}
-                   strokeLinecap="round" className="text-[#7C5CFF]"
+                   strokeLinecap="round" className="text-[var(--primary)]"
                  />
                </svg>
-               <span className="text-xl font-bold text-white z-10">{score}</span>
+               <span className="text-xl font-bold text-[var(--text)] z-10">{score}</span>
             </div>
-            <span className="text-[8px] font-bold text-gray-500 mt-1 uppercase tracking-tighter">Score Roïva</span>
+            <span className="text-[8px] font-bold text-[var(--text-muted)] mt-1 uppercase tracking-tighter">Score Roïva</span>
           </div>
         </div>
       </header>
 
       <button 
         onClick={() => setIsModalOpen(true)}
-        className="group relative flex items-center justify-between w-full bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white p-4 rounded-2xl overflow-hidden transition-all shadow-lg shadow-[#7C5CFF]/20 active:scale-[0.98]"
+        className="group relative flex items-center justify-between w-full bg-[var(--primary)] hover:opacity-90 text-white p-4 rounded-2xl overflow-hidden transition-all shadow-lg shadow-[var(--primary)]/20 active:scale-[0.98]"
       >
         <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
         <div className="flex items-center gap-3">
@@ -584,6 +904,18 @@ const DashboardView = () => {
         />
       </div>
 
+      <div className="space-y-4">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">Analyses Stratégiques</h3>
+          <Sparkles size={14} className="text-[#7C5CFF]" />
+        </div>
+        <div className="grid grid-cols-1 gap-4">
+          {getDashboardInsights(results).map((insight, idx) => (
+            <DashboardInsightCard key={idx} insight={insight} />
+          ))}
+        </div>
+      </div>
+
       <Card>
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-semibold text-white">Performance (YTD)</h3>
@@ -593,30 +925,23 @@ const DashboardView = () => {
             <AreaChart data={data} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#7C5CFF" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#7C5CFF" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} dy={10} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} dy={10} />
               <RechartsTooltip 
-                contentStyle={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                itemStyle={{ color: '#fff' }}
-                cursor={{ stroke: 'rgba(255,255,255,0.1)' }}
+                contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px' }}
+                itemStyle={{ color: 'var(--text)' }}
+                cursor={{ stroke: 'var(--border)' }}
                 formatter={(value: number) => [formatCurrency(value), 'Bénéfice']}
               />
-              <Area type="monotone" dataKey="val" stroke="#7C5CFF" strokeWidth={3} fillOpacity={1} fill="url(#colorVal)" />
+              <Area type="monotone" dataKey="val" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorVal)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </Card>
       
-      <InsightsCard 
-        title="Alertes & Opportunités"
-        insights={[
-          { title: "Croissance Aggressive", desc: "Le modèle actuel suggère un fort potentiel sur T4.", icon: Sparkles, color: "#7C5CFF" },
-          { title: "Couverture Prudente", desc: "Augmentez le stock de sécurité de 10% pour pallier les ruptures.", icon: Shield, color: "#10B981" }
-        ]} 
-      />
     </motion.div>
   );
 };
@@ -1504,7 +1829,7 @@ const PeriodToggle = ({ value, setValue }: { value: PeriodType, setValue: (val: 
 const SalesVelocityToggle = ({ value, setValue }: { value: "Semaine" | "Mois", setValue: (val: "Semaine" | "Mois") => void }) => {
   const options: ("Semaine" | "Mois")[] = ["Semaine", "Mois"];
   return (
-    <div className="flex bg-[#111827] border border-white/10 rounded-xl p-1 relative shadow-inner w-full max-w-[200px]">
+    <div className="flex bg-[var(--bg)] border border-[var(--border)] rounded-xl p-1 relative shadow-inner w-full max-w-[200px]">
       {options.map((opt) => {
         const isActive = value === opt;
         return (
@@ -1512,7 +1837,7 @@ const SalesVelocityToggle = ({ value, setValue }: { value: "Semaine" | "Mois", s
             key={opt}
             onClick={() => setValue(opt)}
             className={`flex-1 py-1 text-[10px] font-semibold rounded-lg z-10 transition-all ${
-              isActive ? "text-white" : "text-gray-400 hover:text-gray-200"
+              isActive ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
             }`}
           >
             {opt}
@@ -1520,10 +1845,529 @@ const SalesVelocityToggle = ({ value, setValue }: { value: "Semaine" | "Mois", s
         );
       })}
       <div 
-        className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#7C5CFF] rounded-lg transition-transform duration-300 ease-out shadow-lg"
+        className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] rounded-lg transition-transform duration-300 ease-out shadow-lg"
         style={{ transform: `translateX(${options.indexOf(value) * 100}%)` }}
       />
     </div>
+  );
+};
+
+const BreakEvenView = () => {
+  const store = useSimulationStore();
+  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const results = runSimulation(store as any, store.activeScenario);
+
+  const getBreakEvenData = () => {
+    const data = [];
+    const points = 10;
+    
+    // We calculate threshold based on fixed costs and margin
+    // In Boutique mode, we have breakEvenTurnover (annual)
+    // In Classic mode, we can derive it
+    
+    let annualBE = results.breakEvenTurnover || 0;
+    let annualFixed = results.annualFixedCosts || 0;
+    let variableRate = 0.5; // Default fallback
+    
+    if (store.analysisMode === 'Boutique') {
+      annualBE = results.breakEvenTurnover || 0;
+      annualFixed = results.annualFixedCosts || 0;
+      variableRate = store.marginCoefficient > 0 ? (1 / store.marginCoefficient) : 0.5;
+    } else {
+      // Classic Mode Break Even Calculation
+      const marketingFactor = (store.marketingExpense || 0) / 100;
+      const logisticsFactor = (store.logisticsOps || 0) / 100;
+      const unitPrice = store.unitPrice || 1;
+      const unitCost = store.unitCost || 0;
+      annualFixed = (store.fixedCosts || 0) * 12;
+      
+      const contributionPerUnit = unitPrice * (1 - (marketingFactor + logisticsFactor)) - unitCost;
+      const beVolume = contributionPerUnit > 0 ? annualFixed / contributionPerUnit : 0;
+      annualBE = beVolume * unitPrice;
+      variableRate = unitPrice > 0 ? (marketingFactor + logisticsFactor + (unitCost / unitPrice)) : 0.5;
+    }
+
+    let divisor = 1;
+    let label = 'Mois';
+    if (period === 'daily') { divisor = 365; label = 'Jour'; }
+    if (period === 'weekly') { divisor = 52; label = 'Semaine'; }
+    if (period === 'monthly') { divisor = 12; label = 'Mois'; }
+
+    const fixed = annualFixed / divisor;
+    const beValue = annualBE / divisor;
+    
+    // Step size for chart - ensure we show enough range
+    const maxVal = Math.max(beValue * 1.5, (results.revenue / divisor) * 1.1, 1000);
+    const step = maxVal / points;
+
+    for (let i = 0; i <= points; i++) {
+      const revenue = Math.round(i * step);
+      const variableCosts = revenue * variableRate;
+      
+      data.push({
+        revenue: revenue,
+        expenses: Math.round(fixed + variableCosts),
+        fixedCosts: Math.round(fixed),
+        profit: Math.max(0, revenue - (fixed + variableCosts))
+      });
+    }
+    return { data, beValue, divisorLabel: label, fixed, annualBE };
+  };
+
+  const { data, beValue, divisorLabel, fixed, annualBE } = getBreakEvenData();
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
+      className="space-y-6 pb-28 max-w-3xl mx-auto w-full pt-20 px-6"
+    >
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Target size={18} className="text-[var(--primary)]" />
+            <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Analyse de Rentabilité</p>
+          </div>
+          <h1 className="text-3xl font-extrabold text-[var(--text)] tracking-tighter">Seuil de Rentabilité</h1>
+        </div>
+        
+        <div className="flex bg-[var(--card)] p-1 rounded-xl border border-[var(--border)] gap-1 shadow-sm">
+          {(['daily', 'weekly', 'monthly'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`px-3 py-1.5 text-[10px] font-black rounded-lg transition-all ${
+                period === p ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
+              }`}
+            >
+              {p === 'daily' ? 'JOUR' : p === 'weekly' ? 'SEMAINE' : 'MOIS'}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-6 bg-gradient-to-br from-[var(--primary)] to-[var(--secondary)] rounded-[2.5rem] text-white shadow-xl">
+          <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-2">Chiffre d'Affaires Critique</p>
+          <h3 className="text-4xl font-black tracking-tighter mb-1">€{Math.round(beValue).toLocaleString()}</h3>
+          <p className="text-[10px] font-bold opacity-70">C.A à réaliser par {divisorLabel.toLowerCase()} pour être à l'équilibre.</p>
+        </div>
+        
+        <div className="p-6 bg-[var(--card)] border border-[var(--border)] rounded-[2.5rem] shadow-sm">
+          <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-2">Frais Fixes par {divisorLabel}</p>
+          <h3 className="text-4xl font-black text-[var(--text)] tracking-tighter mb-1">€{Math.round(fixed).toLocaleString()}</h3>
+          <p className="text-[10px] font-bold text-[var(--text-muted)]">Coûts incompressibles à couvrir chaque {divisorLabel.toLowerCase()}.</p>
+        </div>
+      </div>
+
+      <Card className="p-8">
+        <div className="flex justify-between items-center mb-8">
+          <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">Graphique de Point Mort</h3>
+          <div className="flex items-center gap-4">
+             <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[var(--primary)] opacity-50" />
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Charges</span>
+             </div>
+             <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[var(--primary)]" />
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Revenus</span>
+             </div>
+          </div>
+        </div>
+
+        <div className="h-[350px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
+              <XAxis 
+                dataKey="revenue" 
+                stroke="var(--text-muted)" 
+                fontSize={10} 
+                tickLine={false} 
+                axisLine={false}
+                tickFormatter={(val) => `€${(val/1000).toFixed(0)}k`}
+                tick={{ fontWeight: 700 }}
+                label={{ value: 'Chiffre d\'Affaires (€)', position: 'insideBottom', offset: -10, fontSize: 10, fontWeight: 800, fill: 'var(--text-muted)' }}
+              />
+              <YAxis 
+                stroke="var(--text-muted)" 
+                fontSize={10} 
+                tickLine={false} 
+                axisLine={false}
+                tickFormatter={(val) => `€${(val/1000).toFixed(0)}k`}
+                tick={{ fontWeight: 700 }}
+              />
+              <RechartsTooltip 
+                contentStyle={{ 
+                  backgroundColor: 'var(--card)', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: '16px',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+                  backdropFilter: 'blur(10px)'
+                }}
+                itemStyle={{ fontSize: '12px', fontWeight: 700 }}
+                labelStyle={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 800 }}
+                formatter={(value: any) => [`€${value.toLocaleString()}`, ""]}
+              />
+              {/* Reference line for Break Even */}
+              <ReferenceLine x={beValue} stroke="var(--primary)" strokeDasharray="5 5" label={{ position: 'top', value: 'Équilibre', fill: 'var(--primary)', fontSize: 10, fontWeight: 900 }} />
+              
+              <Line 
+                type="monotone" 
+                dataKey="expenses" 
+                stroke="var(--primary)" 
+                strokeWidth={2} 
+                strokeOpacity={0.3}
+                dot={false}
+                animationDuration={2000}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="revenue" 
+                stroke="var(--primary)" 
+                strokeWidth={4} 
+                dot={false}
+                animationDuration={1500}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-[var(--border)]">
+          <div className="space-y-1">
+            <p className="text-[10px] font-black text-[var(--text-muted)] uppercase">Volume d'Activité</p>
+            <p className="text-xl font-black text-[var(--text)] tracking-tighter">
+              {store.analysisMode === 'Boutique' 
+                ? "Basé sur Coefficient" 
+                : `${Math.ceil(beValue / (store.unitPrice || 1))} Ventes / ${divisorLabel.toLowerCase()}`}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-black text-[var(--text-muted)] uppercase">Marge de Sécurité</p>
+            <p className={`text-xl font-black tracking-tighter ${results.revenue > annualBE ? 'text-emerald-500' : 'text-rose-500'}`}>
+              {results.revenue > annualBE
+                ? `+${Math.round(((results.revenue - annualBE) / (results.revenue || 1)) * 100)}%`
+                : `${Math.round(((results.revenue - annualBE) / (annualBE || 1)) * 100)}%`}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-black text-[var(--text-muted)] uppercase">Levier Opérationnel</p>
+            <p className="text-xl font-black text-[var(--text)] tracking-tighter">
+              {beValue > 0 ? (1 / (1 - (fixed / beValue))).toFixed(2) : "0.00"}x
+            </p>
+          </div>
+        </div>
+      </Card>
+    </motion.div>
+  );
+};
+
+const ComparisonView: React.FC<{ onNavigate: () => void }> = ({ onNavigate }) => {
+  const { history, comparisonIds, toggleComparison, clearComparison } = useSimulationStore();
+  
+  const selectedItems = history.filter(item => comparisonIds.includes(item.id));
+  
+  if (selectedItems.length === 0) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="flex flex-col items-center justify-center p-12 text-center space-y-4 pt-40"
+      >
+        <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-4">
+          <Layers size={40} className="text-gray-600" />
+        </div>
+        <h3 className="text-xl font-bold text-white tracking-tight">Aucune simulation sélectionnée</h3>
+        <p className="text-sm text-gray-400 max-w-xs">Sélectionnez au moins un produit dans votre historique pour le comparer ici.</p>
+        <Button onClick={() => (document.querySelector('button[title="History"]') as any)?.click() || window.location.reload()} className="w-auto px-6">
+          Aller à l'Historique
+        </Button>
+      </motion.div>
+    );
+  }
+
+  const resultsList = selectedItems.map(item => ({
+    id: item.id,
+    name: item.productName,
+    date: item.date,
+    results: runSimulation(item.data, "Réaliste")
+  }));
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
+      className="space-y-6 pb-28 max-w-5xl mx-auto w-full pt-20 px-6"
+    >
+      <header className="flex justify-between items-end mb-8">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Layers className="text-[#7C5CFF]" size={18} />
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Analyse Comparative</p>
+          </div>
+          <h1 className="text-3xl font-extrabold text-white tracking-tighter">Comparatif Produits</h1>
+        </div>
+        <Button 
+          variant="secondary" 
+          onClick={clearComparison}
+          className="w-auto px-4 py-2 text-xs"
+          icon={Trash2}
+        >
+          Tout Effacer
+        </Button>
+      </header>
+
+      <div className="overflow-x-auto pb-4">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="p-4 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest border-b border-white/5">Métriques</th>
+              {resultsList.map(item => (
+                <th key={item.id} className="p-4 text-center border-b border-white/5 min-w-[200px]">
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-sm font-black text-white">{item.name}</span>
+                    <span className="text-[9px] font-bold text-gray-500">{item.date}</span>
+                    <button 
+                      onClick={() => toggleComparison(item.id)}
+                      className="mt-2 text-[9px] font-bold text-rose-500 hover:underline"
+                    >
+                      Retirer
+                    </button>
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {[
+              { label: 'Bénéfice Net (Annuel)', key: 'netProfit', format: (v: number) => `€${Math.round(v).toLocaleString()}`, color: 'text-white' },
+              { label: 'ROI (Retour sur Inv.)', key: 'roi', format: (v: number) => `${v.toFixed(1)}%`, color: 'text-[#7C5CFF]' },
+              { label: 'Marge Nette', key: 'margin', format: (v: number) => `${v.toFixed(1)}%`, color: 'text-emerald-500' },
+              { label: 'C.A. (Annuel)', key: 'revenue', format: (v: number) => `€${Math.round(v).toLocaleString()}`, color: 'text-white' },
+              { label: 'Coûts Totaux', key: 'totalCosts', format: (v: number) => `€${Math.round(v).toLocaleString()}`, color: 'text-gray-400' },
+              { label: 'Point Mort (CA)', key: 'breakEvenTurnover', format: (v: number) => `€${Math.round(v).toLocaleString()}`, color: 'text-rose-400' },
+            ].map(row => (
+              <tr key={row.key} className="hover:bg-white/5 transition-colors">
+                <td className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">{row.label}</td>
+                {resultsList.map(item => (
+                  <td key={item.id} className="p-4 text-center">
+                    <span className={`text-base font-black ${row.color}`}>
+                      {row.format((item.results as any)[row.key])}
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
+        <Card className="p-8 border-emerald-500/20 bg-emerald-500/[0.02]">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+              <TrendingUp className="text-emerald-500" size={20} />
+            </div>
+            <h3 className="text-sm font-black text-white uppercase tracking-widest">Meilleur ROI</h3>
+          </div>
+          {resultsList.length > 0 && (
+            <div>
+              <p className="text-4xl font-black text-emerald-500 tracking-tighter mb-1">
+                {resultsList.reduce((prev, curr) => prev.results.roi > curr.results.roi ? prev : curr).results.roi.toFixed(1)}%
+              </p>
+              <p className="text-xs font-bold text-gray-500">Détenteur : {resultsList.reduce((prev, curr) => prev.results.roi > curr.results.roi ? prev : curr).name}</p>
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-8 border-[#7C5CFF]/20 bg-[#7C5CFF]/[0.02]">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-2xl bg-[#7C5CFF]/10 flex items-center justify-center">
+              <DollarSign className="text-[#7C5CFF]" size={20} />
+            </div>
+            <h3 className="text-sm font-black text-white uppercase tracking-widest">Plus Gros Profit</h3>
+          </div>
+          {resultsList.length > 0 && (
+            <div>
+              <p className="text-4xl font-black text-[#7C5CFF] tracking-tighter mb-1">
+                €{Math.round(resultsList.reduce((prev, curr) => prev.results.netProfit > curr.results.netProfit ? prev : curr).results.netProfit).toLocaleString()}
+              </p>
+              <p className="text-xs font-bold text-gray-500">Détenteur : {resultsList.reduce((prev, curr) => prev.results.netProfit > curr.results.netProfit ? prev : curr).name}</p>
+            </div>
+          )}
+        </Card>
+      </div>
+    </motion.div>
+  );
+};
+
+const EvolutionView = () => {
+  const { history } = useSimulationStore();
+  const [metric, setMetric] = useState<'profit' | 'roi'>('profit');
+
+  const processedData = [...history]
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map((item) => {
+      const results = runSimulation(item.data, "Réaliste");
+      // Extract date part safely (e.g. "02/05/2026")
+      const datePart = item.date.match(/\d{2}\/\d{2}\/\d{4}/)?.[0] || item.date.split(' ')[0];
+      return {
+        date: datePart,
+        timestamp: item.timestamp,
+        profit: Math.round(results.netProfit),
+        roi: parseFloat(results.roi.toFixed(2)),
+        product: item.productName
+      };
+    });
+
+  if (processedData.length < 2) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="flex flex-col items-center justify-center p-12 text-center space-y-4 pt-40"
+      >
+        <div className="w-20 h-20 bg-[var(--primary)]/10 rounded-full flex items-center justify-center mb-4">
+          <TrendingUp size={40} className="text-[var(--primary)]" />
+        </div>
+        <h3 className="text-xl font-bold text-[var(--text)] tracking-tight">Pas assez de données</h3>
+        <p className="text-sm text-[var(--text-muted)] max-w-xs">
+          Enregistrez au moins deux simulations dans votre historique pour voir l'évolution de vos performances.
+        </p>
+      </motion.div>
+    );
+  }
+
+  const currentResults = processedData[processedData.length - 1];
+  const previousResults = processedData[processedData.length - 2];
+  
+  const profitChange = ((currentResults.profit - previousResults.profit) / (Math.abs(previousResults.profit) || 1)) * 100;
+  const roiChange = currentResults.roi - previousResults.roi;
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+      className="space-y-6 pb-28 max-w-3xl mx-auto w-full pt-20 px-6"
+    >
+      <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp size={18} className="text-[var(--primary)]" />
+            <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Analyse de Performance</p>
+          </div>
+          <h1 className="text-3xl font-extrabold text-[var(--text)] tracking-tighter">Évolution Temporelle</h1>
+        </div>
+        
+        <div className="flex bg-[var(--card)] p-1 rounded-xl border border-[var(--border)] gap-1 shadow-sm">
+          <button
+            onClick={() => setMetric('profit')}
+            className={`px-4 py-2 text-[10px] font-black rounded-lg transition-all ${
+              metric === 'profit' ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
+            }`}
+          >
+            BÉNÉFICE NET
+          </button>
+          <button
+            onClick={() => setMetric('roi')}
+            className={`px-4 py-2 text-[10px] font-black rounded-lg transition-all ${
+              metric === 'roi' ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
+            }`}
+          >
+            ROI (%)
+          </button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-6">
+          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1">Dernier Bénéfice</p>
+          <div className="flex items-end gap-3">
+            <h3 className="text-2xl font-black text-[var(--text)]">€{currentResults.profit.toLocaleString()}</h3>
+            <div className={`text-[10px] font-bold flex items-center gap-1 mb-1 ${profitChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+              {profitChange >= 0 ? '↑' : '↓'} {Math.abs(profitChange).toFixed(1)}%
+            </div>
+          </div>
+        </Card>
+        <Card className="p-6">
+          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1">Dernier ROI</p>
+          <div className="flex items-end gap-3">
+            <h3 className="text-2xl font-black text-[var(--text)]">{currentResults.roi}%</h3>
+            <div className={`text-[10px] font-bold flex items-center gap-1 mb-1 ${roiChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+              {roiChange >= 0 ? '↑' : '↓'} {Math.abs(roiChange).toFixed(1)} pts
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Card className="p-6 h-[400px] overflow-visible">
+        <div className="flex justify-between items-center mb-6">
+           <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">Courbe d'Évolution</h3>
+           <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-[var(--primary)] shadow-[0_0_8px_var(--primary)] shadow-sm" />
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase">{metric === 'profit' ? 'Profit (€)' : 'ROI (%)'}</span>
+           </div>
+        </div>
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={processedData}>
+              <defs>
+                <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <XAxis 
+                dataKey="date" 
+                stroke="var(--text-muted)" 
+                fontSize={10} 
+                tickLine={false} 
+                axisLine={false}
+                tick={{ fontWeight: 700 }}
+              />
+              <YAxis 
+                stroke="var(--text-muted)" 
+                fontSize={10} 
+                tickLine={false} 
+                axisLine={false}
+                tickFormatter={(val) => metric === 'profit' ? `${(val/1000).toFixed(0)}k` : `${val}%`}
+                tick={{ fontWeight: 700 }}
+              />
+              <RechartsTooltip 
+                contentStyle={{ 
+                  backgroundColor: 'var(--card)', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: '12px',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                  backdropFilter: 'blur(10px)'
+                }}
+                itemStyle={{ fontSize: '12px', fontWeight: 700 }}
+                labelStyle={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 800 }}
+              />
+              <Area 
+                type="monotone" 
+                dataKey={metric} 
+                stroke="var(--primary)" 
+                strokeWidth={4}
+                fillOpacity={1} 
+                fill="url(#colorMetric)" 
+                animationDuration={1500}
+                activeDot={{ r: 6, stroke: 'var(--bg)', strokeWidth: 2, fill: 'var(--primary)' }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+      <div className="bg-[var(--primary)]/5 border border-[var(--primary)]/10 rounded-2xl p-6 flex items-start gap-4">
+         <div className="p-2 bg-[var(--primary)]/20 rounded-xl text-[var(--primary)]">
+            <Lightbulb size={20} />
+         </div>
+         <div>
+            <h4 className="text-sm font-black text-[var(--text)] uppercase tracking-wider mb-1">Interprétation</h4>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              Ce graphique montre l'impact de vos ajustements de paramètres sur la rentabilité. 
+              {profitChange > 0 ? " Vos dernières modifications ont significativement amélioré votre bénéfice net." : " Soyez vigilant sur la baisse de bénéfice entre vos dernières simulations."}
+              Utilisez l'onglet Historique pour restaurer des versions spécifiques si nécessaire.
+            </p>
+         </div>
+      </div>
+    </motion.div>
   );
 };
 
@@ -1542,7 +2386,7 @@ const StockView = () => {
     >
       <header>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+          <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
             {store.analysisMode === 'Product' ? 'Analyse des Stocks' : 'Analyse de Capacité'}
           </p>
           <div className="flex items-center gap-2">
@@ -1550,13 +2394,13 @@ const StockView = () => {
               type="text" 
               value={store.productName} 
               onChange={(e) => store.setProductName(e.target.value)}
-              className="bg-[#7C5CFF]/10 text-[#7C5CFF] text-[10px] font-bold px-2 py-1 rounded border border-[#7C5CFF]/30 outline-none focus:ring-1 focus:ring-[#7C5CFF] w-32"
+              className="bg-[var(--primary)]/10 text-[var(--primary)] text-[10px] font-bold px-2 py-1 rounded border border-[var(--primary)]/30 outline-none focus:ring-1 focus:ring-[var(--primary)] w-32"
               placeholder={store.analysisMode === 'Product' ? "Nom du produit..." : "Nom du projet..."}
             />
           </div>
         </div>
         <div className="flex items-center gap-3 mb-4">
-          <h1 className="text-2xl font-bold text-white tracking-tight">Gestion des Niveaux</h1>
+          <h1 className="text-2xl font-bold text-[var(--text)] tracking-tight">Gestion des Niveaux</h1>
           {isCritical && (
             <motion.div 
               initial={{ scale: 0 }} animate={{ scale: 1 }}
@@ -1981,20 +2825,20 @@ const SupportView = () => {
     >
       <header className="mb-6">
         <div className="flex items-center gap-2 mb-2">
-          <LifeBuoy className="text-[#7C5CFF]" size={18} />
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Centre d'Assistance</p>
+          <LifeBuoy className="text-[var(--primary)]" size={18} />
+          <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Centre d'Assistance</p>
         </div>
-        <h1 className="text-3xl font-extrabold text-white tracking-tighter">Support & Guide</h1>
+        <h1 className="text-3xl font-extrabold text-[var(--text)] tracking-tighter">Support & Guide</h1>
       </header>
 
       {/* Navigation Interne */}
-      <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 mb-8 overflow-x-auto no-scrollbar gap-1">
+      <div className="flex bg-[var(--card)] p-1 rounded-2xl border border-[var(--border)] mb-8 overflow-x-auto no-scrollbar gap-1">
         {(['guide', 'faq', 'contact', 'legal'] as const).map((s) => (
           <button
             key={s}
             onClick={() => setActiveSection(s)}
             className={`min-w-[70px] flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${
-              activeSection === s ? "bg-[#7C5CFF] text-white shadow-lg" : "text-gray-500 hover:text-gray-300"
+              activeSection === s ? "bg-[var(--primary)] text-white shadow-lg" : "text-[var(--text-muted)] hover:text-[var(--text)]"
             }`}
           >
             {s === 'guide' ? 'Guide' : s === 'faq' ? 'FAQ' : s === 'contact' ? 'Contact' : 'Légal'}
@@ -2010,17 +2854,17 @@ const SupportView = () => {
           >
             {/* Steps Section */}
             <div className="space-y-4">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                <MousePointer2 size={16} className="text-[#7C5CFF]" /> Premiers Pas
+              <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest flex items-center gap-2">
+                <MousePointer2 size={16} className="text-[var(--primary)]" /> Premiers Pas
               </h3>
               {guideSteps.map((step, i) => (
-                <div key={i} className="relative flex gap-4 p-5 bg-white/5 rounded-2xl border border-white/5">
+                <div key={i} className="relative flex gap-4 p-5 bg-[var(--card)] rounded-2xl border border-[var(--border)]">
                   <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center ${step.color}`}>
                     <step.icon size={20} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-white mb-1">{step.title}</h4>
-                    <p className="text-xs text-gray-400 leading-relaxed">{step.desc}</p>
+                    <h4 className="text-sm font-bold text-[var(--text)] mb-1">{step.title}</h4>
+                    <p className="text-xs text-[var(--text-muted)] leading-relaxed">{step.desc}</p>
                   </div>
                 </div>
               ))}
@@ -2028,23 +2872,23 @@ const SupportView = () => {
 
             {/* Glossary Section */}
             <div className="space-y-4">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                <BookOpen size={16} className="text-[#7C5CFF]" /> Lexique & Concepts
+              <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest flex items-center gap-2">
+                <BookOpen size={16} className="text-[var(--primary)]" /> Lexique & Concepts
               </h3>
               <div className="grid grid-cols-1 gap-3">
                 {glossary.map((item, i) => (
-                  <div key={i} className="p-4 bg-[#7C5CFF]/5 rounded-xl border border-[#7C5CFF]/10">
-                    <p className="text-[10px] font-black text-[#7C5CFF] uppercase mb-1 tracking-tighter">{item.term}</p>
-                    <p className="text-xs text-gray-300 leading-tight">{item.def}</p>
+                  <div key={i} className="p-4 bg-[var(--primary)]/5 rounded-xl border border-[var(--primary)]/10">
+                    <p className="text-[10px] font-black text-[var(--primary)] uppercase mb-1 tracking-tighter">{item.term}</p>
+                    <p className="text-xs text-[var(--text-muted)] leading-tight">{item.def}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="p-6 bg-gradient-to-br from-[#7C5CFF]/10 to-blue-500/10 rounded-3xl border border-white/10 text-center">
+            <div className="p-6 bg-gradient-to-br from-[var(--primary)]/10 to-[var(--secondary)]/10 rounded-3xl border border-[var(--border)] text-center">
               <Lightbulb className="text-amber-400 mx-auto mb-3" size={32} />
-              <h4 className="text-sm font-bold text-white mb-2">Conseil d'Expert</h4>
-              <p className="text-xs text-gray-400 italic">
+              <h4 className="text-sm font-bold text-[var(--text)] mb-2">Conseil d'Expert</h4>
+              <p className="text-xs text-[var(--text-muted)] italic">
                 "Un bon stock est un stock qui tourne. Si votre couverture dépasse 60 jours, vous immobilisez trop de trésorerie qui pourrait être utilisée pour la publicité."
               </p>
             </div>
@@ -2151,8 +2995,8 @@ const SupportView = () => {
 
 // --- History View ---
 
-const HistoryView: React.FC<{ onRestore: () => void }> = ({ onRestore }) => {
-  const { history, loadFromHistory, deleteHistoryItem } = useSimulationStore();
+const HistoryView: React.FC<{ onRestore: () => void, onCompare: () => void }> = ({ onRestore, onCompare }) => {
+  const { history, loadFromHistory, deleteHistoryItem, comparisonIds, toggleComparison } = useSimulationStore();
 
   if (history.length === 0) {
     return (
@@ -2183,22 +3027,36 @@ const HistoryView: React.FC<{ onRestore: () => void }> = ({ onRestore }) => {
       </header>
 
       <div className="space-y-4">
-        {history.map((item) => (
-          <Card key={item.id} className="p-5 group">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h4 className="text-lg font-bold text-white mb-1 group-hover:text-[#7C5CFF] transition-colors">{item.productName}</h4>
-                <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-                  <Clock size={10} /> {item.date}
+        {history.map((item) => {
+          const isCompared = comparisonIds.includes(item.id);
+          return (
+            <Card key={item.id} className={`p-5 group transition-all ${isCompared ? 'border-[#7C5CFF] bg-[#7C5CFF]/5' : ''}`}>
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => toggleComparison(item.id)}
+                    className={`mt-1 w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                      isCompared 
+                        ? 'bg-[#7C5CFF] border-[#7C5CFF] text-white' 
+                        : 'border-white/20 text-transparent hover:border-white/40'
+                    }`}
+                  >
+                    <CheckCircle size={12} />
+                  </button>
+                  <div>
+                    <h4 className="text-lg font-bold text-white mb-1 group-hover:text-[#7C5CFF] transition-colors">{item.productName}</h4>
+                    <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                      <Clock size={10} /> {item.date}
+                    </div>
+                  </div>
                 </div>
+                <button 
+                  onClick={() => deleteHistoryItem(item.id)}
+                  className="p-2 bg-white/5 hover:bg-rose-500/10 text-gray-500 hover:text-rose-500 rounded-xl transition-all"
+                >
+                  <X size={16} />
+                </button>
               </div>
-              <button 
-                onClick={() => deleteHistoryItem(item.id)}
-                className="p-2 bg-white/5 hover:bg-rose-500/10 text-gray-500 hover:text-rose-500 rounded-xl transition-all"
-              >
-                <X size={16} />
-              </button>
-            </div>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-white/5 p-3 rounded-xl border border-white/5">
@@ -2221,8 +3079,25 @@ const HistoryView: React.FC<{ onRestore: () => void }> = ({ onRestore }) => {
               <RotateCcw size={14} /> Restaurer cette Simulation
             </button>
           </Card>
-        ))}
-      </div>
+        );
+      })}
+      
+      {comparisonIds.length > 0 && (
+         <motion.div 
+           initial={{ y: 20, opacity: 0 }}
+           animate={{ y: 0, opacity: 1 }}
+           className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-6 py-4 bg-[var(--primary)] rounded-full shadow-[0_20px_50px_rgba(124,92,255,0.4)] flex items-center gap-6"
+         >
+           <p className="text-xs font-black text-white whitespace-nowrap">{comparisonIds.length} Sél. pour comparer</p>
+           <button 
+             onClick={onCompare}
+             className="px-4 py-2 bg-white text-[var(--primary)] text-[10px] font-black rounded-full hover:scale-105 active:scale-95 transition-all shadow-lg"
+           >
+             VOIR LE COMPARATIF
+           </button>
+         </motion.div>
+      )}
+    </div>
     </motion.div>
   );
 };
@@ -2388,12 +3263,667 @@ const SmartInfoBar = ({ visible }: { visible: boolean }) => {
 };
 
 
+// --- Settings View ---
+
+const SettingsView = () => {
+  const store = useSimulationStore();
+  const { themeMode, primaryColor, secondaryColor, setThemeMode, setPrimaryColor, setSecondaryColor } = store;
+
+  const colorPresets = [
+    { primary: '#7C5CFF', secondary: '#2563EB', name: 'Violet Roïva' },
+    { primary: '#10B981', secondary: '#059669', name: 'Vert Émeraude' },
+    { primary: '#F59E0B', secondary: '#D97706', name: 'Ambre Chaud' },
+    { primary: '#EF4444', secondary: '#DC2626', name: 'Rouge Impact' },
+    { primary: '#3B82F6', secondary: '#1D4ED8', name: 'Bleu Royal' },
+    { primary: '#EC4899', secondary: '#DB2777', name: 'Rose Éclat' },
+  ];
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+      className="space-y-6 pb-28 max-w-lg mx-auto w-full pt-20 px-6"
+    >
+      <header className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Settings className="text-[var(--primary)]" size={18} />
+          <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Configuration App</p>
+        </div>
+        <h1 className="text-3xl font-extrabold text-[var(--text)] tracking-tighter">Paramètres</h1>
+      </header>
+
+      {/* Theme Mode Selection */}
+      <Card title="Apparence" bgIcon={Sun}>
+        <h3 className="text-sm font-bold text-[var(--text)] mb-4 flex items-center gap-2">
+          {themeMode === 'dark' ? <Wind size={16} /> : <Sun size={16} />} 
+          Thème Visuel
+        </h3>
+        <div className="flex bg-[var(--bg)] border border-[var(--border)] rounded-xl p-1 relative shadow-inner h-12">
+          <button
+            onClick={() => setThemeMode('dark')}
+            className={`flex-1 flex items-center justify-center gap-2 text-xs font-bold rounded-lg z-10 transition-all ${
+              themeMode === 'dark' ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
+            }`}
+          >
+            <Wind size={14} /> SOMBRE
+          </button>
+          <button
+            onClick={() => setThemeMode('light')}
+            className={`flex-1 flex items-center justify-center gap-2 text-xs font-bold rounded-lg z-10 transition-all ${
+              themeMode === 'light' ? "text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
+            }`}
+          >
+            <Sun size={14} /> CLAIR
+          </button>
+          <motion.div 
+            className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] rounded-lg shadow-lg"
+            animate={{ x: themeMode === 'dark' ? 0 : '100%' }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          />
+        </div>
+      </Card>
+
+      {/* Color Customization */}
+      <Card title="Palette de Couleurs" bgIcon={Target}>
+        <h3 className="text-sm font-bold text-[var(--text)] mb-4 flex items-center gap-2">
+          <Target size={16} className="text-[var(--primary)]" />
+          Couleurs d'Accentuation
+        </h3>
+        
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">Primaire</label>
+              <div className="flex items-center gap-3 bg-[var(--bg)] p-2 rounded-xl border border-[var(--border)]">
+                <input 
+                  type="color" 
+                  value={primaryColor} 
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className="w-8 h-8 rounded-lg bg-transparent border-0 cursor-pointer"
+                />
+                <span className="text-[10px] font-mono font-bold uppercase">{primaryColor}</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">Secondaire</label>
+              <div className="flex items-center gap-3 bg-[var(--bg)] p-2 rounded-xl border border-[var(--border)]">
+                <input 
+                  type="color" 
+                  value={secondaryColor} 
+                  onChange={(e) => setSecondaryColor(e.target.value)}
+                  className="w-8 h-8 rounded-lg bg-transparent border-0 cursor-pointer"
+                />
+                <span className="text-[10px] font-mono font-bold uppercase">{secondaryColor}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+             <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest block">Préréglages</label>
+             <div className="grid grid-cols-3 gap-2">
+               {colorPresets.map((preset, i) => (
+                 <button
+                   key={i}
+                   onClick={() => {
+                     setPrimaryColor(preset.primary);
+                     setSecondaryColor(preset.secondary);
+                   }}
+                   className={`flex flex-col items-center p-2 rounded-xl border transition-all ${
+                     primaryColor === preset.primary ? 'border-[var(--primary)] bg-[var(--primary)]/10' : 'border-[var(--border)] bg-white/5 hover:bg-white/10'
+                   }`}
+                 >
+                   <div className="flex gap-1 mb-1.5">
+                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: preset.primary }}></div>
+                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: preset.secondary }}></div>
+                   </div>
+                   <span className="text-[8px] font-bold uppercase tracking-tighter opacity-70">{preset.name}</span>
+                 </button>
+               ))}
+             </div>
+          </div>
+        </div>
+      </Card>
+
+      <Button 
+        variant="secondary" 
+        icon={RotateCcw}
+        onClick={() => {
+          setThemeMode('dark');
+          setPrimaryColor('#7C5CFF');
+          setSecondaryColor('#2563EB');
+        }}
+      >
+        Réinitialiser par défaut
+      </Button>
+    </motion.div>
+  );
+};
+
+const BoutiqueView = () => {
+  const store = useSimulationStore();
+  const results = runSimulation(store as any, store.activeScenario);
+  const [breakEvenPeriod, setBreakEvenPeriod] = useState<'Jour' | 'Semaine' | 'Mois'>('Mois');
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Store className="text-[var(--primary)]" size={18} />
+            <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Seuil de Rentabilité</p>
+          </div>
+          <h1 className="text-3xl lg:text-4xl font-black text-[var(--text)] tracking-tighter">Boutique & CHR</h1>
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+          <div className="flex bg-[var(--card)] p-1 rounded-xl border border-[var(--border)] gap-1 shadow-sm shrink-0">
+             {(["Retail", "CHR"] as const).map(type => (
+               <button
+                 key={type}
+                 onClick={() => store.setAll({ businessType: type })}
+                 className={`px-4 py-2 text-[10px] font-bold rounded-lg transition-all ${
+                   store.businessType === type 
+                     ? "bg-[var(--primary)] text-white shadow-lg" 
+                     : "text-[var(--text-muted)] hover:text-[var(--text)]"
+                 }`}
+               >
+                 {type === 'Retail' ? 'POINTS DE VENTE' : 'RESTAURATION / CHR'}
+               </button>
+             ))}
+          </div>
+          <ScenarioToggle value={store.activeScenario} setValue={store.setActiveScenario} />
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <div className="xl:col-span-2 space-y-8">
+          {/* Section Salaires */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Users className="text-[var(--primary)]" size={18} />
+                <h2 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">Équipe & Salaires</h2>
+              </div>
+              <button 
+                onClick={store.addEmployee}
+                className="flex items-center gap-2 px-3 py-1.5 bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] text-[10px] font-black rounded-lg transition-all group"
+              >
+                <Plus size={14} className="group-hover:rotate-90 transition-transform" /> AGENT
+              </button>
+            </div>
+            
+            {store.employees.length > 0 && (
+              <div className="mb-6 p-5 bg-[var(--primary)]/5 border border-[var(--primary)]/10 rounded-2xl flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center">
+                    <Users className="text-[var(--primary)]" size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest leading-none mb-1">Masse Salariale Totale</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xl font-black text-[var(--text)] tracking-tighter">€{results.employeeCosts.toLocaleString()}</span>
+                      <span className="text-[10px] font-bold text-[var(--text-muted)]">/ mois</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest leading-none mb-1">Effectif Actuel</p>
+                  <p className="text-xl font-black text-[var(--primary)] tracking-tighter">{store.employees.length} <span className="text-[10px] font-bold text-[var(--text-muted)] tracking-normal">Pers.</span></p>
+                </div>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {store.employees.map((emp) => (
+                 <motion.div 
+                   layout
+                   initial={{ opacity: 0, scale: 0.9 }}
+                   animate={{ opacity: 1, scale: 1 }}
+                   key={emp.id} 
+                   className="p-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl relative group"
+                 >
+                   <button 
+                     onClick={() => store.removeEmployee(emp.id)}
+                     className="absolute top-4 right-4 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-rose-500/10 rounded-lg"
+                   >
+                     <Trash2 size={14} />
+                   </button>
+                   <div className="flex items-center gap-3 mb-4">
+                     <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
+                       <User size={16} className="text-[var(--primary)]" />
+                     </div>
+                     <input 
+                       type="text" 
+                       value={emp.name}
+                       placeholder="Prénom / Poste"
+                       onChange={(e) => store.updateEmployee(emp.id, 'name', e.target.value)}
+                       className="bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none w-full"
+                     />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                     <div>
+                       <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">Salaire Net</label>
+                       <div className="relative">
+                         <input 
+                           type="number" 
+                           value={emp.salary}
+                           onChange={(e) => store.updateEmployee(emp.id, 'salary', parseFloat(e.target.value) || 0)}
+                           className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
+                         />
+                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">€</span>
+                       </div>
+                     </div>
+                     <div>
+                       <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">Charges (%)</label>
+                       <div className="relative">
+                         <input 
+                           type="number" 
+                           value={emp.charges}
+                           onChange={(e) => store.updateEmployee(emp.id, 'charges', parseFloat(e.target.value) || 0)}
+                            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-[var(--border)] space-y-1.5">
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-[var(--text-muted)] uppercase">Coût Total Entreprise</span>
+                        <span className="text-[var(--text)] text-xs font-black">€{(emp.salary * (1 + emp.charges / 100) + (store.mutualInsurancePerEmployee || 0)).toLocaleString()} <span className="text-[8px] font-medium opacity-60">/ mois</span></span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-[var(--text-muted)] uppercase tracking-wider">Poids dans la masse salariale</span>
+                        <span className="text-[var(--primary)] text-xs font-black">
+                          {results.employeeCosts > 0 
+                            ? ((emp.salary * (1 + emp.charges / 100) + (store.mutualInsurancePerEmployee || 0)) / results.employeeCosts * 100).toFixed(1) 
+                            : '0.0'}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-bold pb-1">
+                        <span className="text-[var(--text-muted)] uppercase tracking-wider">Part du budget total</span>
+                        <span className="text-emerald-500 text-xs font-black">
+                          {results.totalCosts > 0 
+                            ? (((emp.salary * (1 + emp.charges / 100) + (store.mutualInsurancePerEmployee || 0)) * 12 / results.totalCosts) * 100).toFixed(1) 
+                            : '0.0'}%
+                        </span>
+                      </div>
+                      <div className="h-1 w-full bg-[var(--border)] rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${results.employeeCosts > 0 ? ((emp.salary * (1 + emp.charges / 100) + (store.mutualInsurancePerEmployee || 0)) / results.employeeCosts * 100) : 0}%` }}
+                          className="h-full bg-[var(--primary)]"
+                        />
+                      </div>
+                    </div>
+
+
+                 </motion.div>
+               ))}
+               {store.employees.length === 0 && (
+                 <div className="col-span-full py-10 border-2 border-dashed border-[var(--border)] rounded-3xl flex flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
+                   <Users size={32} strokeWidth={1} />
+                   <p className="text-xs font-medium">Aucun employé enregistré. Commencez par en ajouter un.</p>
+                 </div>
+               )}
+            </div>
+          </section>
+
+          {/* Section Gestion des Prêts */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Banknote className="text-[var(--primary)]" size={18} />
+                <h2 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">Gestion des Emprunts</h2>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-[var(--primary)]/5 p-6 rounded-[2rem] border border-[var(--primary)]/10">
+              <div>
+                <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest block mb-2">Montant du Prêt (€)</label>
+                <input 
+                  type="number"
+                  value={store.loanAmount}
+                  onChange={(e) => store.setLoanAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--text)] shadow-sm focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest block mb-2">Taux d'intérêt (%)</label>
+                <input 
+                  type="number"
+                  step="0.1"
+                  value={store.loanInterestRate}
+                  onChange={(e) => store.setLoanInterestRate(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--text)] shadow-sm focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest block mb-2">Durée (Mois)</label>
+                <input 
+                  type="number"
+                  value={store.loanDurationMonths}
+                  onChange={(e) => store.setLoanDurationMonths(parseInt(e.target.value) || 0)}
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--text)] shadow-sm focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest block mb-2">Paiements Effectués</label>
+                <input 
+                  type="number"
+                  value={store.loanPaymentsMade}
+                  onChange={(e) => store.setLoanPaymentsMade(parseInt(e.target.value) || 0)}
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--text)] shadow-sm focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                />
+              </div>
+            </div>
+            {store.loanAmount > 0 && (
+              <div className="mt-4 p-4 bg-[var(--bg)] border border-[var(--border)] rounded-2xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/20 flex items-center justify-center">
+                    <History className="text-[var(--primary)]" size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Reste à payer</p>
+                    <p className="text-sm font-black text-[var(--text)]">€{Math.max(0, Math.round(store.loanAmount * (1 - (store.loanPaymentsMade / store.loanDurationMonths)))).toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase">Mensualité estimée</p>
+                  <p className="text-lg font-black text-[var(--primary)] tracking-tighter">€{Math.round(results.loanPayment || 0).toLocaleString()} <span className="text-[10px] font-medium text-[var(--text-muted)] tracking-normal">/ mois</span></p>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Section Dépenses Fixes */}
+          <section>
+            <div className="flex items-center gap-2 mb-6">
+              <Building2 className="text-[var(--primary)]" size={18} />
+              <h2 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">Charges d'Exploitation (Mensuel)</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               <PremiumSlider 
+                 label="Loyer & Charges"
+                 value={store.rent}
+                 onChange={store.setRent}
+                 min={0} max={20000}
+                 icon={Home}
+                 format={(v: number) => `€${v.toLocaleString()}`}
+               />
+               <PremiumSlider 
+                 label="Crédit / Emprunts"
+                 value={store.loanPayment}
+                 onChange={store.setLoanPayment}
+                 min={0} max={10000}
+                 icon={Wallet}
+                 format={(v: number) => `€${v.toLocaleString()}`}
+               />
+               <PremiumSlider 
+                 label="TVA (Mensuel)"
+                 value={store.vatPayment}
+                 onChange={store.setVatPayment}
+                 min={0} max={20000}
+                 icon={DollarSign}
+                 format={(v: number) => `€${v.toLocaleString()}`}
+               />
+               <PremiumSlider 
+                 label="Cotisations URSSAF"
+                 value={store.ursafGlobal}
+                 onChange={store.setUrsafGlobal}
+                 min={0} max={10000}
+                 icon={Briefcase}
+                 format={(v: number) => `€${v.toLocaleString()}`}
+               />
+               <PremiumSlider 
+                 label="Mutuelle / Salarié"
+                 value={store.mutualInsurancePerEmployee}
+                 onChange={store.setMutualInsurancePerEmployee}
+                 min={0} max={300}
+                 icon={HeartPulse}
+                 format={(v: number) => `€${v.toLocaleString()}`}
+               />
+               <PremiumSlider 
+                 label="Eau, Gaz, Élec."
+                 value={store.utilities}
+                 onChange={store.setUtilities}
+                 min={0} max={5000}
+                 icon={Zap}
+                 format={(v: number) => `€${v.toLocaleString()}`}
+               />
+               <PremiumSlider 
+                 label="Taxes & Impôts"
+                 value={store.taxCharges}
+                 onChange={store.setTaxCharges}
+                 min={0} max={10000}
+                 icon={FileText}
+                 format={(v: number) => `€${v.toLocaleString()}`}
+               />
+               <PremiumSlider 
+                 label="Assurances"
+                 value={store.insurance}
+                 onChange={store.setInsurance}
+                 min={0} max={2000}
+                 icon={ShieldCheck}
+                 format={(v: number) => `€${v.toLocaleString()}`}
+               />
+               <PremiumSlider 
+                 label="Entretien"
+                 value={store.maintenance}
+                 onChange={store.setMaintenance}
+                 min={0} max={5000}
+                 icon={Settings}
+                 format={(v: number) => `€${v.toLocaleString()}`}
+               />
+            </div>
+          </section>
+
+          {/* Section Autres Frais Détaillés */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <MoreHorizontal className="text-[var(--primary)]" size={18} />
+                <h2 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">Autres Frais Détaillés</h2>
+              </div>
+              <button 
+                onClick={store.addOtherExpense}
+                className="flex items-center gap-2 px-3 py-1.5 bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] text-[10px] font-black rounded-lg transition-all group"
+              >
+                <Plus size={14} className="group-hover:rotate-90 transition-transform" /> FRAIS
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {store.otherExpenses.map((exp) => (
+                 <motion.div 
+                   layout
+                   initial={{ opacity: 0, scale: 0.9 }}
+                   animate={{ opacity: 1, scale: 1 }}
+                   key={exp.id} 
+                   className="p-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl relative group"
+                 >
+                   <button 
+                     onClick={() => store.removeOtherExpense(exp.id)}
+                     className="absolute top-4 right-4 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-rose-500/10 rounded-lg"
+                   >
+                     <Trash2 size={14} />
+                   </button>
+                   <div className="flex items-center gap-3 mb-4">
+                     <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
+                       <MoreHorizontal size={16} className="text-[var(--primary)]" />
+                     </div>
+                     <input 
+                       type="text" 
+                       value={exp.name}
+                       placeholder="Libellé du frais"
+                       onChange={(e) => store.updateOtherExpense(exp.id, 'name', e.target.value)}
+                       className="bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none w-full"
+                     />
+                   </div>
+                   <div>
+                     <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">Montant Mensuel</label>
+                     <div className="relative">
+                       <input 
+                         type="number" 
+                         value={exp.amount}
+                         onChange={(e) => store.updateOtherExpense(exp.id, 'amount', parseFloat(e.target.value) || 0)}
+                         className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
+                       />
+                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">€</span>
+                     </div>
+                   </div>
+                 </motion.div>
+               ))}
+               {store.otherExpenses.length === 0 && (
+                 <div className="col-span-full py-10 border-2 border-dashed border-[var(--border)] rounded-3xl flex flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
+                   <MoreHorizontal size={32} strokeWidth={1} />
+                   <p className="text-xs font-medium">Aucun frais divers enregistré.</p>
+                 </div>
+               )}
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-8">
+           {/* Section Coefficient de Marge */}
+           <Card className="p-6 bg-gradient-to-br from-[var(--primary)] to-[var(--secondary)] border-none text-white overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-[60px] -mr-16 -mt-16 rounded-full" />
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-6">
+                  <Calculator size={18} />
+                  <h3 className="text-[10px] font-black uppercase tracking-widest">Coefficient de Marge</h3>
+                </div>
+                <div className="mb-6">
+                  <p className="text-4xl font-black tracking-tighter mb-2">x{store.marginCoefficient}</p>
+                  <p className="text-[10px] opacity-70 font-bold uppercase tracking-widest leading-relaxed">
+                    {store.businessType === 'Retail' ? "Multiplicateur sur prix d'achat" : "Multiplicateur sur le coût des matières (Ratio SHR)"}
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  <input 
+                    type="range"
+                    min="1.5"
+                    max="6"
+                    step="0.1"
+                    value={store.marginCoefficient}
+                    onChange={(e) => store.setMarginCoefficient(parseFloat(e.target.value))}
+                    className="w-full accent-white"
+                  />
+                  <div className="flex justify-between text-[9px] font-black opacity-50 uppercase tracking-widest">
+                    <span>Low (1.5)</span>
+                    <span>High (6.0)</span>
+                  </div>
+                </div>
+              </div>
+           </Card>
+
+           {/* Break Even Summary */}
+           <Card className="p-0 border-[var(--border)] overflow-hidden shadow-2xl shadow-[var(--primary)]/5">
+              <div className="p-6 bg-[var(--card)] border-b border-[var(--border)]">
+                <h3 className="text-xs font-black text-[var(--text)] uppercase tracking-widest mb-1 flex items-center gap-2">
+                  <PieChart size={16} className="text-[var(--primary)]" /> Synthèse Financière
+                </h3>
+                <p className="text-[10px] text-[var(--text-muted)] font-medium">Besoins mensuels d'exploitation</p>
+              </div>
+              <div className="p-6 space-y-6">
+                <div>
+                   <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest mb-1">Marge Brute Estimée</p>
+                   <p className="text-3xl font-black text-[var(--text)] tracking-tighter">{(results.margin || 0).toFixed(1)}%</p>
+                </div>
+
+                <div className="space-y-4">
+                   <div className="flex justify-between items-center text-xs font-bold">
+                      <span className="text-[var(--text-muted)]">Coûts Fixes (Mois)</span>
+                      <span className="text-[var(--text)]">€{results.monthlyFixedCosts?.toLocaleString()}</span>
+                   </div>
+                   <div className="h-1 bg-[var(--bg)] rounded-full overflow-hidden">
+                      <div className="h-full bg-[var(--primary)] w-[60%]" />
+                   </div>
+                </div>
+
+                <div className="p-6 bg-[var(--primary)]/5 rounded-[2rem] border border-[var(--primary)]/10 text-center relative overflow-hidden group">
+                   <div className="flex justify-center mb-4">
+                      <div className="flex bg-[var(--bg)] p-1 rounded-lg border border-[var(--border)] gap-1 shadow-sm">
+                        {(['Jour', 'Semaine', 'Mois'] as const).map((period) => (
+                          <button
+                            key={period}
+                            onClick={() => setBreakEvenPeriod(period)}
+                            className={`px-3 py-1 text-[9px] font-black rounded-md transition-all ${
+                              breakEvenPeriod === period 
+                                ? "bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/20" 
+                                : "text-[var(--text-muted)] hover:text-[var(--text)]"
+                            }`}
+                          >
+                            {period.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                   </div>
+
+                   <p className="text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.2em] mb-2">
+                     Seuil de Rentabilité CA / {breakEvenPeriod.toLowerCase()}
+                   </p>
+                   
+                   <motion.p 
+                     key={breakEvenPeriod}
+                     initial={{ opacity: 0, y: 10 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     className="text-4xl font-black text-[var(--text)] tracking-tighter mb-2"
+                   >
+                     €{Math.round(
+                       breakEvenPeriod === 'Jour' ? (results.breakEvenTurnover || 0) / 365 :
+                       breakEvenPeriod === 'Semaine' ? (results.breakEvenTurnover || 0) / 52 :
+                       (results.breakEvenTurnover || 0) / 12
+                     ).toLocaleString()}
+                   </motion.p>
+                   
+                   <p className="text-[10px] text-[var(--text-muted)] font-medium italic">
+                     {breakEvenPeriod === 'Jour' ? "Objectif minimum par jour ouvré." : 
+                      breakEvenPeriod === 'Semaine' ? "Pivot hebdomadaire de sécurité." :
+                      "C'est le montant minimum pour ne pas perdre d'argent."}
+                   </p>
+                </div>
+
+                <div className="pt-4 space-y-3">
+                   <div className="flex items-center gap-2 p-3 bg-[var(--bg)] rounded-xl border border-[var(--border)]">
+                      <TrendingUp size={14} className="text-emerald-400" />
+                      <div className="flex-1">
+                        <p className="text-[9px] font-black text-[var(--text-muted)] uppercase">Objectif CA (+20%)</p>
+                        <p className="text-xs font-bold text-[var(--text)]">€{Math.round((results.breakEvenTurnover || 0) / 12 * 1.2).toLocaleString()}</p>
+                      </div>
+                   </div>
+                </div>
+              </div>
+           </Card>
+
+           <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">Analyses IA</h3>
+                <Sparkles size={14} className="text-[#7C5CFF]" />
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {getDashboardInsights(results).map((insight, idx) => (
+                  <DashboardInsightCard key={idx} insight={insight} />
+                ))}
+              </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- App ---
 export default function App() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "simulation" | "stocks" | "scenarios" | "analyses" | "history" | "settings" | "support" | "evolution" | "breakeven" | "comparison">('dashboard');
   const [showSmartBar, setShowSmartBar] = useState(false);
   const store = useSimulationStore();
-  const { updateLastSaved, lastSaved } = store;
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setIsAuthChecking(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (showSmartBar) {
@@ -2404,30 +3934,65 @@ export default function App() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      updateLastSaved();
+        store.updateLastSaved();
     }, 30000);
     return () => clearInterval(interval);
-  }, [updateLastSaved]);
+  }, [store.updateLastSaved]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (store.themeMode === 'light') {
+      root.classList.add('light');
+    } else {
+      root.classList.remove('light');
+    }
+    
+    // Update dynamic colors
+    root.style.setProperty('--primary', store.primaryColor);
+    root.style.setProperty('--secondary', store.secondaryColor);
+  }, [store.themeMode, store.primaryColor, store.secondaryColor]);
+
+  if (isAuthChecking) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-[#0F172A]">
+        <div className="w-10 h-10 border-4 border-[#7C5CFF]/20 border-t-[#7C5CFF] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   return (
-    <div className="min-h-screen bg-[#0F172A] font-sans text-gray-200 selection:bg-[#7C5CFF]/30 relative overflow-x-hidden">
+    <div className="min-h-screen bg-[var(--bg)] font-sans text-[var(--text)] selection:bg-[var(--primary)]/30 relative overflow-x-hidden transition-colors duration-300"
+      style={{ 
+        '--primary': store.primaryColor,
+        '--secondary': store.secondaryColor,
+        '--bg': store.themeMode === 'dark' ? '#0F172A' : '#F8FAFC',
+        '--card': store.themeMode === 'dark' ? 'rgba(30, 41, 59, 0.7)' : '#FFFFFF',
+        '--border': store.themeMode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+        '--text': store.themeMode === 'dark' ? '#FFFFFF' : '#0F172A',
+        '--text-muted': store.themeMode === 'dark' ? '#94A3B8' : '#64748B',
+      } as React.CSSProperties}
+    >
+      <FirebaseSync user={user} />
       
       {/* Background Ambient Glow */}
-      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#7C5CFF]/10 blur-[120px] pointer-events-none"></div>
-      <div className="fixed bottom-[10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#2563EB]/10 blur-[120px] pointer-events-none"></div>
+      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[var(--primary)]/10 blur-[120px] pointer-events-none transition-all duration-700"></div>
+      <div className="fixed bottom-[10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[var(--secondary)]/10 blur-[120px] pointer-events-none transition-all duration-700"></div>
 
       <SmartInfoBar visible={showSmartBar} />
 
       {/* TopNav */}
       <header 
-        onClick={() => setShowSmartBar(true)}
-        className="fixed top-0 w-full z-50 bg-[#0F172A]/80 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 w-full cursor-pointer group"
+        className="fixed top-0 w-full z-50 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--border)] flex justify-between items-center px-6 h-16 w-full transition-colors duration-300"
       >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#7C5CFF] to-[#2563EB] flex items-center justify-center overflow-hidden border border-white/20 shadow-lg shadow-[#7C5CFF]/20">
+        <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setShowSmartBar(true)}>
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[var(--primary)] to-[var(--secondary)] flex items-center justify-center overflow-hidden border border-white/20 shadow-lg shadow-[var(--primary)]/20 transition-all">
             <span className="text-white font-bold text-xs tracking-tighter">RV</span>
           </div>
-          <span className="text-xl font-bold tracking-tight text-white font-display">Roïva</span>
+          <span className="text-xl font-bold tracking-tight text-[var(--text)] font-display">Roïva</span>
         </div>
         
         <div className="hidden sm:block">
@@ -2435,19 +4000,28 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
-          {lastSaved && (
+          {store.lastSaved && (
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              key={lastSaved}
+              key={store.lastSaved}
               className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-gray-500 font-medium bg-white/5 px-2 py-1 rounded-md border border-white/5"
             >
               <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="hidden xs:inline">Sauvegardé à</span> {lastSaved}
+              <span className="hidden xs:inline">Sauvegardé à</span> {store.lastSaved}
             </motion.div>
           )}
-          <div className="w-8 h-8 rounded-full border border-white/20 overflow-hidden bg-white/5 shadow-sm">
-            <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop" alt="Profile" className="w-full h-full object-cover" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full border border-[var(--primary)]/30 overflow-hidden bg-white/5 shadow-sm ring-2 ring-[var(--primary)]/10">
+               <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || user.email}`} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            </div>
+            <button 
+              onClick={logout}
+              className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-500/10"
+              title="Se déconnecter"
+            >
+              <ExternalLink size={14} />
+            </button>
           </div>
         </div>
       </header>
@@ -2456,15 +4030,19 @@ export default function App() {
       <AnimatePresence mode="wait">
         {activeTab === "dashboard" && <DashboardView key="dashboard" />}
         {activeTab === "simulation" && <SimulationView key="simulation" />}
+        {activeTab === "breakeven" && <BreakEvenView key="breakeven" />}
+        {activeTab === "comparison" && <ComparisonView key="comparison" onNavigate={() => setActiveTab('simulation')} />}
+        {activeTab === "evolution" && <EvolutionView key="evolution" />}
         {activeTab === "stocks" && <StockView key="stocks" />}
         {activeTab === "scenarios" && <ScenariosView key="scenarios" />}
         {activeTab === "analyses" && <InsightsView key="analyses" />}
         {activeTab === "support" && <SupportView key="support" />}
-        {activeTab === "history" && <HistoryView key="history" onRestore={() => setActiveTab("dashboard")} />}
+        {activeTab === "history" && <HistoryView key="history" onRestore={() => setActiveTab("dashboard")} onCompare={() => setActiveTab("comparison")} />}
+        {activeTab === "settings" && <SettingsView key="settings" />}
       </AnimatePresence>
 
       {/* BottomNav */}
-      <nav className="fixed bottom-0 w-full z-50 bg-[#0F172A]/90 backdrop-blur-2xl border-t border-white/5 shadow-2xl flex justify-around items-center h-[5.5rem] px-1 pb-6 max-w-lg mx-auto left-0 right-0 rounded-t-3xl">
+      <nav className="fixed bottom-0 w-full z-50 bg-[var(--bg)]/95 backdrop-blur-2xl border-t border-[var(--border)] shadow-2xl flex justify-around items-center h-[5.5rem] px-1 pb-6 max-w-lg mx-auto left-0 right-0 rounded-t-3xl transition-colors duration-300">
         <NavItem 
           icon={Home} 
           label="Dash" 
@@ -2478,16 +4056,22 @@ export default function App() {
           onClick={() => setActiveTab("simulation")} 
         />
         <NavItem 
+          icon={Target} 
+          label="Seuil" 
+          active={activeTab === "breakeven"} 
+          onClick={() => setActiveTab("breakeven")} 
+        />
+        <NavItem 
+          icon={TrendingUp} 
+          label="Evol." 
+          active={activeTab === "evolution"} 
+          onClick={() => setActiveTab("evolution")} 
+        />
+        <NavItem 
           icon={Boxes} 
           label="Stocks" 
           active={activeTab === "stocks"} 
           onClick={() => setActiveTab("stocks")} 
-        />
-        <NavItem 
-          icon={Layers} 
-          label="Scéna" 
-          active={activeTab === "scenarios"} 
-          onClick={() => setActiveTab("scenarios")} 
         />
         <NavItem 
           icon={Sparkles} 
@@ -2497,10 +4081,22 @@ export default function App() {
           highlight={true}
         />
         <NavItem 
+          icon={Layers} 
+          label="Comp" 
+          active={activeTab === "comparison"} 
+          onClick={() => setActiveTab("comparison")} 
+        />
+        <NavItem 
           icon={History} 
           label="Hist." 
           active={activeTab === "history"} 
           onClick={() => setActiveTab("history")} 
+        />
+        <NavItem 
+          icon={Settings} 
+          label="Param" 
+          active={activeTab === "settings"} 
+          onClick={() => setActiveTab("settings")} 
         />
         <NavItem 
           icon={LifeBuoy} 
@@ -2513,20 +4109,21 @@ export default function App() {
   );
 }
 
+
 const NavItem = ({ icon: Icon, label, active, onClick, highlight = false }: any) => {
   return (
     <button 
       onClick={onClick}
-      className={`flex flex-col items-center justify-center p-1 w-[16%] group transition-all duration-300 ${active ? 'scale-105' : 'hover:scale-105'}`}
+      className={`flex flex-col items-center justify-center p-1 flex-1 min-w-0 group transition-all duration-300 ${active ? 'scale-105' : 'hover:scale-105'}`}
     >
-      <div className={`relative flex items-center justify-center w-10 h-8 rounded-full overflow-hidden transition-all duration-300 ${active ? (highlight ? 'bg-gradient-to-r from-[#7C5CFF] to-[#2563EB] shadow-[0_0_15px_rgba(124,92,255,0.4)] text-white' : 'bg-white/10 text-white') : 'bg-transparent text-gray-500 group-hover:text-gray-300 group-hover:bg-white/5'}`}>
+      <div className={`relative flex items-center justify-center w-10 h-8 rounded-full overflow-hidden transition-all duration-300 ${active ? (highlight ? 'bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] shadow-[0_0_15px_rgba(124,92,255,0.4)] text-white' : 'bg-white/10 text-[var(--text)]') : 'bg-transparent text-[var(--text-muted)] group-hover:text-[var(--text)] group-hover:bg-white/5'}`}>
          <Icon 
            size={active ? 20 : 20} 
            className={`transition-colors duration-300`} 
            strokeWidth={active ? 2.5 : 2}
          />
       </div>
-      <span className={`text-[9px] font-semibold tracking-wide mt-1.5 uppercase transition-colors duration-300 ${active ? 'text-white' : 'text-gray-500 group-hover:text-gray-400'}`}>
+      <span className={`text-[9px] font-semibold tracking-wide mt-1.5 uppercase transition-colors duration-300 ${active ? 'text-[var(--text)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-muted)]'}`}>
         {label}
       </span>
     </button>

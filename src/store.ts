@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { db, auth } from './firebase'
+import { collection, addDoc, deleteDoc, doc, setDoc } from 'firebase/firestore'
+import { handleFirestoreError, OperationType } from './lib/firebaseUtils'
 
 export type ScenarioType = "Pessimiste" | "Réaliste" | "Optimiste";
 
@@ -34,9 +37,35 @@ export interface HistoryItem {
     periodType: PeriodType;
     targetSales: number;
     targetSalesPeriod: "Semaine" | "Mois";
-    analysisMode: 'Product' | 'Project';
+    analysisMode: 'Product' | 'Project' | 'Boutique';
+    businessType: 'Retail' | 'CHR';
     lowCoverageThreshold: number;
     safetyStockAlertThreshold: number;
+    themeMode: 'light' | 'dark';
+    primaryColor: string;
+    secondaryColor: string;
+    
+    // Boutique specific
+    employees: Array<{ id: string, name: string, salary: number, charges: number }>;
+    rent: number;
+    utilities: number;
+    taxCharges: number;
+    insurance: number;
+    maintenance: number;
+    otherMiscExpenses: number;
+    marginCoefficient: number;
+    
+    otherExpenses: Array<{ id: string, name: string, amount: number }>;
+    
+    // New Detailed Expenses
+    loanAmount: number;
+    loanInterestRate: number;
+    loanDurationMonths: number;
+    loanPaymentsMade: number;
+    loanPayment: number;
+    vatPayment: number;
+    ursafGlobal: number;
+    mutualInsurancePerEmployee: number;
   };
 }
 
@@ -59,15 +88,44 @@ interface SimulationState {
   targetSales: number;
   targetSalesPeriod: "Semaine" | "Mois";
   productName: string;
-  analysisMode: 'Product' | 'Project';
+  analysisMode: 'Product' | 'Project' | 'Boutique';
+  businessType: 'Retail' | 'CHR';
   lowCoverageThreshold: number;
   safetyStockAlertThreshold: number;
   
+  // Boutique Fields
+  employees: Array<{ id: string, name: string, salary: number, charges: number }>;
+  rent: number;
+  utilities: number;
+  taxCharges: number;
+  insurance: number;
+  maintenance: number;
+  otherMiscExpenses: number;
+  marginCoefficient: number;
+  
+  otherExpenses: Array<{ id: string, name: string, amount: number }>;
+  
+  // New Detailed Expenses
+  loanAmount: number;
+  loanInterestRate: number;
+  loanDurationMonths: number;
+  loanPaymentsMade: number;
+  loanPayment: number;
+  vatPayment: number;
+  ursafGlobal: number;
+  mutualInsurancePerEmployee: number;
+  
+  // Theme State
+  themeMode: 'light' | 'dark';
+  primaryColor: string;
+  secondaryColor: string;
+
   // App State
   activeScenario: ScenarioType;
   lastSaved: string | null;
   snapshots: Snapshot[];
   history: HistoryItem[];
+  comparisonIds: string[];
   
   // Actions
   setInitialCapital: (val: number) => void;
@@ -85,16 +143,49 @@ interface SimulationState {
   setTargetSales: (val: number) => void;
   setTargetSalesPeriod: (val: "Semaine" | "Mois") => void;
   setProductName: (val: string) => void;
-  setAnalysisMode: (val: 'Product' | 'Project') => void;
+  setAnalysisMode: (val: 'Product' | 'Project' | 'Boutique') => void;
+  setBusinessType: (val: 'Retail' | 'CHR') => void;
   setLowCoverageThreshold: (val: number) => void;
   setSafetyStockAlertThreshold: (val: number) => void;
+
+  // Boutique methods
+  addEmployee: () => void;
+  removeEmployee: (id: string) => void;
+  updateEmployee: (id: string, field: 'salary' | 'charges' | 'name', val: any) => void;
+  setRent: (val: number) => void;
+  setUtilities: (val: number) => void;
+  setTaxCharges: (val: number) => void;
+  setInsurance: (val: number) => void;
+  setMaintenance: (val: number) => void;
+  setOtherMiscExpenses: (val: number) => void;
+  setMarginCoefficient: (val: number) => void;
+  
+  addOtherExpense: () => void;
+  removeOtherExpense: (id: string) => void;
+  updateOtherExpense: (id: string, field: 'name' | 'amount', val: any) => void;
+  
+  setLoanAmount: (val: number) => void;
+  setLoanInterestRate: (val: number) => void;
+  setLoanDurationMonths: (val: number) => void;
+  setLoanPaymentsMade: (val: number) => void;
+  setLoanPayment: (val: number) => void;
+  setVatPayment: (val: number) => void;
+  setUrsafGlobal: (val: number) => void;
+  setMutualInsurancePerEmployee: (val: number) => void;
+  
+  setThemeMode: (mode: 'light' | 'dark') => void;
+  setPrimaryColor: (color: string) => void;
+  setSecondaryColor: (color: string) => void;
   setActiveScenario: (val: ScenarioType) => void;
+  toggleComparison: (id: string) => void;
+  clearComparison: () => void;
   updateLastSaved: () => void;
-  saveSnapshot: (name: string) => void;
-  deleteSnapshot: (id: string) => void;
-  saveToHistory: () => void;
+  saveSnapshot: (name: string) => Promise<void>;
+  deleteSnapshot: (id: string) => Promise<void>;
+  saveToHistory: () => Promise<void>;
   loadFromHistory: (item: HistoryItem) => void;
-  deleteHistoryItem: (id: string) => void;
+  deleteHistoryItem: (id: string) => Promise<void>;
+  setAll: (data: Partial<SimulationState>) => void;
 }
 
 export const useSimulationStore = create<SimulationState>()(
@@ -117,13 +208,39 @@ export const useSimulationStore = create<SimulationState>()(
       targetSalesPeriod: "Semaine",
       productName: "Produit Alpha",
       analysisMode: 'Product',
+      businessType: 'Retail',
       lowCoverageThreshold: 15,
       safetyStockAlertThreshold: 100,
+
+      // Boutique Defaults
+      employees: [],
+      rent: 2500,
+      utilities: 450,
+      taxCharges: 300,
+      insurance: 150,
+      maintenance: 200,
+      otherMiscExpenses: 100,
+      marginCoefficient: 3,
+      otherExpenses: [],
+      
+      loanAmount: 0,
+      loanInterestRate: 0,
+      loanDurationMonths: 60,
+      loanPaymentsMade: 0,
+      loanPayment: 0,
+      vatPayment: 0,
+      ursafGlobal: 0,
+      mutualInsurancePerEmployee: 50,
+      
+      themeMode: 'dark',
+      primaryColor: '#7C5CFF',
+      secondaryColor: '#2563EB',
       
       activeScenario: "Réaliste",
       lastSaved: null,
       snapshots: [],
       history: [],
+      comparisonIds: [],
       
       setInitialCapital: (val) => set({ initialCapital: val }),
       setUnitPrice: (val) => set({ unitPrice: val }),
@@ -141,15 +258,63 @@ export const useSimulationStore = create<SimulationState>()(
       setTargetSalesPeriod: (val) => set({ targetSalesPeriod: val }),
       setProductName: (val) => set({ productName: val }),
       setAnalysisMode: (val) => set({ analysisMode: val }),
+      setBusinessType: (val) => set({ businessType: val }),
       setLowCoverageThreshold: (val) => set({ lowCoverageThreshold: val }),
       setSafetyStockAlertThreshold: (val) => set({ safetyStockAlertThreshold: val }),
+
+      addEmployee: () => set((state) => ({
+        employees: [...state.employees, { id: Math.random().toString(36).substr(2, 9), name: '', salary: 1800, charges: 45 }]
+      })),
+      removeEmployee: (id) => set((state) => ({
+        employees: state.employees.filter(e => e.id !== id)
+      })),
+      updateEmployee: (id, field, val) => set((state) => ({
+        employees: state.employees.map(e => e.id === id ? { ...e, [field]: val } : e)
+      })),
+      setRent: (val) => set({ rent: val }),
+      setUtilities: (val) => set({ utilities: val }),
+      setTaxCharges: (val) => set({ taxCharges: val }),
+      setInsurance: (val) => set({ insurance: val }),
+      setMaintenance: (val) => set({ maintenance: val }),
+      setOtherMiscExpenses: (val) => set({ otherMiscExpenses: val }),
+      setMarginCoefficient: (val) => set({ marginCoefficient: val }),
+
+      addOtherExpense: () => set((state) => ({
+        otherExpenses: [...state.otherExpenses, { id: Math.random().toString(36).substr(2, 9), name: '', amount: 100 }]
+      })),
+      removeOtherExpense: (id) => set((state) => ({
+        otherExpenses: state.otherExpenses.filter(oe => oe.id !== id)
+      })),
+      updateOtherExpense: (id, field, val) => set((state) => ({
+        otherExpenses: state.otherExpenses.map(oe => oe.id === id ? { ...oe, [field]: val } : oe)
+      })),
+
+      setLoanAmount: (val) => set({ loanAmount: val }),
+      setLoanInterestRate: (val) => set({ loanInterestRate: val }),
+      setLoanDurationMonths: (val) => set({ loanDurationMonths: val }),
+      setLoanPaymentsMade: (val) => set({ loanPaymentsMade: val }),
+      setLoanPayment: (val) => set({ loanPayment: val }),
+      setVatPayment: (val) => set({ vatPayment: val }),
+      setUrsafGlobal: (val) => set({ ursafGlobal: val }),
+      setMutualInsurancePerEmployee: (val) => set({ mutualInsurancePerEmployee: val }),
+
+      setThemeMode: (mode) => set({ themeMode: mode }),
+      setPrimaryColor: (color) => set({ primaryColor: color }),
+      setSecondaryColor: (color) => set({ secondaryColor: color }),
       setActiveScenario: (val) => set({ activeScenario: val }),
+      toggleComparison: (id) => set((state) => ({
+        comparisonIds: state.comparisonIds.includes(id) 
+          ? state.comparisonIds.filter(cid => cid !== id)
+          : [...state.comparisonIds, id]
+      })),
+      clearComparison: () => set({ comparisonIds: [] }),
       updateLastSaved: () => set({ lastSaved: new Date().toLocaleTimeString() }),
       
-      saveToHistory: () => {
+      saveToHistory: async () => {
         const state = get();
-        const newItem: HistoryItem = {
-          id: Math.random().toString(36).substr(2, 9),
+        const user = auth.currentUser;
+        
+        const newItemData = {
           productName: state.productName,
           date: new Date().toLocaleString('fr-FR'),
           timestamp: Date.now(),
@@ -171,9 +336,40 @@ export const useSimulationStore = create<SimulationState>()(
             analysisMode: state.analysisMode,
             lowCoverageThreshold: state.lowCoverageThreshold,
             safetyStockAlertThreshold: state.safetyStockAlertThreshold,
+            themeMode: state.themeMode,
+            primaryColor: state.primaryColor,
+            secondaryColor: state.secondaryColor,
+            businessType: state.businessType,
+            employees: state.employees,
+            rent: state.rent,
+            utilities: state.utilities,
+            taxCharges: state.taxCharges,
+            insurance: state.insurance,
+            maintenance: state.maintenance,
+            otherMiscExpenses: state.otherMiscExpenses,
+            marginCoefficient: state.marginCoefficient,
+            otherExpenses: state.otherExpenses,
+            loanAmount: state.loanAmount,
+            loanInterestRate: state.loanInterestRate,
+            loanDurationMonths: state.loanDurationMonths,
+            loanPaymentsMade: state.loanPaymentsMade,
+            loanPayment: state.loanPayment,
+            vatPayment: state.vatPayment,
+            ursafGlobal: state.ursafGlobal,
+            mutualInsurancePerEmployee: state.mutualInsurancePerEmployee,
           }
         };
-        set({ history: [newItem, ...state.history].slice(0, 20) });
+
+        if (user) {
+          try {
+            await addDoc(collection(db, 'users', user.uid, 'history'), newItemData);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/history`);
+          }
+        } else {
+          const newItem: HistoryItem = { id: Math.random().toString(36).substr(2, 9), ...newItemData };
+          set({ history: [newItem, ...state.history].slice(0, 20) });
+        }
       },
 
       loadFromHistory: (item) => {
@@ -184,23 +380,55 @@ export const useSimulationStore = create<SimulationState>()(
         });
       },
 
-      deleteHistoryItem: (id) => set({ history: get().history.filter(h => h.id !== id) }),
-      saveSnapshot: (name) => {
+      deleteHistoryItem: async (id) => {
+        const user = auth.currentUser;
+        if (user) {
+          try {
+            await deleteDoc(doc(db, 'users', user.uid, 'history', id));
+          } catch (error) {
+            handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/history/${id}`);
+          }
+        } else {
+          set({ history: get().history.filter(h => h.id !== id) });
+        }
+      },
+      
+      saveSnapshot: async (name) => {
          const state = get();
-         // runSimulation logic would be imported or computed here
-         // For the store, we just save the current "essential" findings
-         // In a real app we'd compute this properly.
-         const newSnapshot: Snapshot = {
-            id: Math.random().toString(36).substr(2, 9),
+         const user = auth.currentUser;
+         
+         const newSnapshotData = {
             name,
             date: new Date().toLocaleDateString(),
             score: 0, // Computed by component layer call
             profit: 0,
             roi: 0
          };
-         set({ snapshots: [newSnapshot, ...state.snapshots].slice(0, 5) });
+
+         if (user) {
+            try {
+              await addDoc(collection(db, 'users', user.uid, 'snapshots'), newSnapshotData);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/snapshots`);
+            }
+         } else {
+            const newSnapshot: Snapshot = { id: Math.random().toString(36).substr(2, 9), ...newSnapshotData };
+            set({ snapshots: [newSnapshot, ...state.snapshots].slice(0, 5) });
+         }
       },
-      deleteSnapshot: (id) => set({ snapshots: get().snapshots.filter(s => s.id !== id) })
+      deleteSnapshot: async (id) => {
+        const user = auth.currentUser;
+        if (user) {
+          try {
+            await deleteDoc(doc(db, 'users', user.uid, 'snapshots', id));
+          } catch (error) {
+            handleFirestoreError(error, OperationType.DELETE, `users/${user.uid}/snapshots/${id}`);
+          }
+        } else {
+          set({ snapshots: get().snapshots.filter(s => s.id !== id) });
+        }
+      },
+      setAll: (data) => set((state) => ({ ...state, ...data }))
     }),
     {
       name: 'roiva-simulation-storage',

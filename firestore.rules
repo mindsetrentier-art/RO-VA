@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // --- User Validation ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['themeMode', 'primaryColor', 'secondaryColor'])
+        && data.themeMode in ['light', 'dark']
+        && data.primaryColor is string && data.primaryColor.size() <= 7 && data.primaryColor.matches('^#[A-Fa-f0-9]{6}$')
+        && data.secondaryColor is string && data.secondaryColor.size() <= 7 && data.secondaryColor.matches('^#[A-Fa-f0-9]{6}$')
+        && (!data.keys().hasAny(['productName']) || (data.productName is string && data.productName.size() <= 100))
+        && (!data.keys().hasAny(['initialCapital']) || (data.initialCapital is number && data.initialCapital >= 0))
+        && (!data.keys().hasAny(['unitPrice']) || (data.unitPrice is number && data.unitPrice >= 0))
+        && (!data.keys().hasAny(['volume']) || (data.volume is number && data.volume >= 0))
+        && (!data.keys().hasAny(['unitCost']) || (data.unitCost is number && data.unitCost >= 0))
+        && (!data.keys().hasAny(['fixedCosts']) || (data.fixedCosts is number && data.fixedCosts >= 0))
+        && (!data.keys().hasAny(['marketingExpense']) || (data.marketingExpense is number && data.marketingExpense >= 0 && data.marketingExpense <= 100))
+        && (!data.keys().hasAny(['logisticsOps']) || (data.logisticsOps is number && data.logisticsOps >= 0 && data.logisticsOps <= 100))
+        && (!data.keys().hasAny(['safetyStock']) || (data.safetyStock is number && data.safetyStock >= 0))
+        && (!data.keys().hasAny(['analysisMode']) || data.analysisMode in ['Product', 'Project', 'Boutique'])
+        && (!data.keys().hasAny(['businessType']) || data.businessType in ['Retail', 'CHR'])
+        && (!data.keys().hasAny(['rent']) || (data.rent is number && data.rent >= 0))
+        && (!data.keys().hasAny(['utilities']) || (data.utilities is number && data.utilities >= 0))
+        && (!data.keys().hasAny(['taxCharges']) || (data.taxCharges is number && data.taxCharges >= 0))
+        && (!data.keys().hasAny(['insurance']) || (data.insurance is number && data.insurance >= 0))
+        && (!data.keys().hasAny(['maintenance']) || (data.maintenance is number && data.maintenance >= 0))
+        && (!data.keys().hasAny(['otherMiscExpenses']) || (data.otherMiscExpenses is number && data.otherMiscExpenses >= 0))
+        && (!data.keys().hasAny(['marginCoefficient']) || (data.marginCoefficient is number && data.marginCoefficient >= 0))
+        && (!data.keys().hasAny(['otherExpenses']) || (data.otherExpenses is list && data.otherExpenses.size() <= 100))
+        && (!data.keys().hasAny(['loanAmount']) || (data.loanAmount is number && data.loanAmount >= 0))
+        && (!data.keys().hasAny(['loanInterestRate']) || (data.loanInterestRate is number && data.loanInterestRate >= 0))
+        && (!data.keys().hasAny(['loanDurationMonths']) || (data.loanDurationMonths is number && data.loanDurationMonths >= 0))
+        && (!data.keys().hasAny(['loanPaymentsMade']) || (data.loanPaymentsMade is number && data.loanPaymentsMade >= 0))
+        && (!data.keys().hasAny(['loanPayment']) || (data.loanPayment is number && data.loanPayment >= 0))
+        && (!data.keys().hasAny(['vatPayment']) || (data.vatPayment is number && data.vatPayment >= 0))
+        && (!data.keys().hasAny(['ursafGlobal']) || (data.ursafGlobal is number && data.ursafGlobal >= 0))
+        && (!data.keys().hasAny(['mutualInsurancePerEmployee']) || (data.mutualInsurancePerEmployee is number && data.mutualInsurancePerEmployee >= 0))
+        && (!data.keys().hasAny(['employees']) || (data.employees is list && data.employees.size() <= 50));
+    }
+
+    // --- History Item Validation ---
+    function isValidHistoryItem(data) {
+      return data.keys().hasAll(['productName', 'date', 'timestamp', 'data'])
+        && data.productName is string && data.productName.size() <= 100
+        && data.date is string && data.date.size() <= 50
+        && data.timestamp is number
+        && data.data is map;
+    }
+
+    // --- Snapshot Validation ---
+    function isValidSnapshot(data) {
+      return data.keys().hasAll(['name', 'date', 'score', 'profit', 'roi'])
+        && data.name is string && data.name.size() <= 100
+        && data.date is string && data.date.size() <= 50
+        && data.score is number && data.profit is number && data.roi is number;
+    }
+
+    // --- Matches ---
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming());
+      
+      match /history/{historyId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(historyId) && isValidHistoryItem(incoming());
+        allow update: if isOwner(userId) && isValidHistoryItem(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /snapshots/{snapshotId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(snapshotId) && isValidSnapshot(incoming());
+        allow update: if isOwner(userId) && isValidSnapshot(incoming());
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

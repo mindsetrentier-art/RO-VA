@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and global settings",
+      "type": "object",
+      "properties": {
+        "themeMode": { "type": "string", "enum": ["light", "dark"] },
+        "primaryColor": { "type": "string" },
+        "secondaryColor": { "type": "string" },
+        "lowCoverageThreshold": { "type": "number" },
+        "safetyStockAlertThreshold": { "type": "number" },
+        "analysisMode": { "type": "string", "enum": ["Product", "Project", "Boutique"] },
+        "businessType": { "type": "string", "enum": ["Retail", "CHR"] },
+        "productName": { "type": "string" },
+        "initialCapital": { "type": "number" },
+        "unitPrice": { "type": "number" },
+        "volume": { "type": "number" },
+        "annualGrowth": { "type": "number" },
+        "unitCost": { "type": "number" },
+        "fixedCosts": { "type": "number" },
+        "marketingExpense": { "type": "number" },
+        "logisticsOps": { "type": "number" },
+        "safetyStock": { "type": "number" },
+        "initialStock": { "type": "number" },
+        "finalStock": { "type": "number" },
+        "periodType": { "type": "string" },
+        "targetSales": { "type": "number" },
+        "targetSalesPeriod": { "type": "string" },
+        "activeScenario": { "type": "string" },
+        "employees": { 
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "salary": { "type": "number" },
+              "charges": { "type": "number" }
+            }
+          }
+        },
+        "rent": { "type": "number" },
+        "utilities": { "type": "number" },
+        "taxCharges": { "type": "number" },
+        "insurance": { "type": "number" },
+        "maintenance": { "type": "number" },
+        "otherMiscExpenses": { "type": "number" },
+        "marginCoefficient": { "type": "number" },
+        "otherExpenses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "amount": { "type": "number" }
+            }
+          }
+        },
+        "loanAmount": { "type": "number" },
+        "loanInterestRate": { "type": "number" },
+        "loanDurationMonths": { "type": "number" },
+        "loanPaymentsMade": { "type": "number" },
+        "loanPayment": { "type": "number" },
+        "vatPayment": { "type": "number" },
+        "ursafGlobal": { "type": "number" },
+        "mutualInsurancePerEmployee": { "type": "number" }
+      }
+    },
+    "HistoryItem": {
+      "title": "HistoryItem",
+      "description": "A saved simulation history item",
+      "type": "object",
+      "properties": {
+        "productName": { "type": "string" },
+        "date": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "data": { "type": "object" }
+      },
+      "required": ["productName", "date", "timestamp", "data"]
+    },
+    "Snapshot": {
+      "title": "Snapshot",
+      "description": "A snapshot of a simulation's performance",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "date": { "type": "string" },
+        "score": { "type": "number" },
+        "profit": { "type": "number" },
+        "roi": { "type": "number" }
+      },
+      "required": ["name", "date", "score", "profit", "roi"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Global user settings and current state"
+    },
+    "/users/{userId}/history/{historyId}": {
+      "schema": "HistoryItem",
+      "description": "Simulation history for a user"
+    },
+    "/users/{userId}/snapshots/{snapshotId}": {
+      "schema": "Snapshot",
+      "description": "Saved snapshots for a user"
+    }
+  }
+}

@@ -3,15 +3,36 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --color-roiva-violet: #7C5CFF;
-  --color-roiva-blue: #2563EB;
-  --color-dark-bg: #0F172A;
-  --color-dark-card: #111827;
+  --color-roiva-violet: var(--primary);
+  --color-roiva-blue: var(--secondary);
+  --color-dark-bg: var(--bg);
+  --color-dark-card: var(--card);
+}
+
+:root {
+  --primary: #7C5CFF;
+  --secondary: #2563EB;
+  --bg: #0F172A;
+  --card: #111827;
+  --text: #F9FAFB;
+  --text-muted: #9CA3AF;
+  --border: rgba(255, 255, 255, 0.1);
+}
+
+:root.light {
+  --primary: #7C5CFF;
+  --secondary: #2563EB;
+  --bg: #F3F4F6;
+  --card: #FFFFFF;
+  --text: #111827;
+  --text-muted: #4B5563;
+  --border: rgba(0, 0, 0, 0.1);
 }
 
 body {
-  background-color: var(--color-dark-bg);
-  color: #F9FAFB;
+  background-color: var(--bg);
+  color: var(--text);
+  transition: background-color 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
 }
 
