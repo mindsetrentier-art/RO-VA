@@ -54,8 +54,10 @@ export interface HistoryItem {
     maintenance: number;
     otherMiscExpenses: number;
     marginCoefficient: number;
+    monthlyTaxes: number;
     
     otherExpenses: Array<{ id: string, name: string, amount: number }>;
+    boutiqueProducts: Array<{ id: string, name: string, unitCost: number, marginCoefficient: number, expectedVolume: number }>;
     
     // New Detailed Expenses
     loanAmount: number;
@@ -102,8 +104,10 @@ interface SimulationState {
   maintenance: number;
   otherMiscExpenses: number;
   marginCoefficient: number;
+  monthlyTaxes: number;
   
   otherExpenses: Array<{ id: string, name: string, amount: number }>;
+  boutiqueProducts: Array<{ id: string, name: string, unitCost: number, marginCoefficient: number, expectedVolume: number }>;
   
   // New Detailed Expenses
   loanAmount: number;
@@ -159,10 +163,15 @@ interface SimulationState {
   setMaintenance: (val: number) => void;
   setOtherMiscExpenses: (val: number) => void;
   setMarginCoefficient: (val: number) => void;
+  setMonthlyTaxes: (val: number) => void;
   
   addOtherExpense: () => void;
   removeOtherExpense: (id: string) => void;
   updateOtherExpense: (id: string, field: 'name' | 'amount', val: any) => void;
+  
+  addBoutiqueProduct: () => void;
+  removeBoutiqueProduct: (id: string) => void;
+  updateBoutiqueProduct: (id: string, field: 'name' | 'unitCost' | 'marginCoefficient' | 'expectedVolume', val: any) => void;
   
   setLoanAmount: (val: number) => void;
   setLoanInterestRate: (val: number) => void;
@@ -221,7 +230,17 @@ export const useSimulationStore = create<SimulationState>()(
       maintenance: 200,
       otherMiscExpenses: 100,
       marginCoefficient: 3,
+      monthlyTaxes: 500,
       otherExpenses: [],
+      boutiqueProducts: [
+        { 
+          id: 'initial-prod-1', 
+          name: 'Produit A', 
+          unitCost: 20, 
+          marginCoefficient: 3, 
+          expectedVolume: 1000 
+        }
+      ],
       
       loanAmount: 0,
       loanInterestRate: 0,
@@ -278,6 +297,7 @@ export const useSimulationStore = create<SimulationState>()(
       setMaintenance: (val) => set({ maintenance: val }),
       setOtherMiscExpenses: (val) => set({ otherMiscExpenses: val }),
       setMarginCoefficient: (val) => set({ marginCoefficient: val }),
+      setMonthlyTaxes: (val) => set({ monthlyTaxes: val }),
 
       addOtherExpense: () => set((state) => ({
         otherExpenses: [...state.otherExpenses, { id: Math.random().toString(36).substr(2, 9), name: '', amount: 100 }]
@@ -287,6 +307,22 @@ export const useSimulationStore = create<SimulationState>()(
       })),
       updateOtherExpense: (id, field, val) => set((state) => ({
         otherExpenses: state.otherExpenses.map(oe => oe.id === id ? { ...oe, [field]: val } : oe)
+      })),
+
+      addBoutiqueProduct: () => set((state) => ({
+        boutiqueProducts: [...state.boutiqueProducts, { 
+          id: Math.random().toString(36).substr(2, 9), 
+          name: `Produit ${String.fromCharCode(65 + state.boutiqueProducts.length)}`, 
+          unitCost: 15, 
+          marginCoefficient: state.marginCoefficient || 2.5, 
+          expectedVolume: 500 
+        }]
+      })),
+      removeBoutiqueProduct: (id) => set((state) => ({
+        boutiqueProducts: state.boutiqueProducts.filter(p => p.id !== id)
+      })),
+      updateBoutiqueProduct: (id, field, val) => set((state) => ({
+        boutiqueProducts: state.boutiqueProducts.map(p => p.id === id ? { ...p, [field]: val } : p)
       })),
 
       setLoanAmount: (val) => set({ loanAmount: val }),
@@ -348,7 +384,9 @@ export const useSimulationStore = create<SimulationState>()(
             maintenance: state.maintenance,
             otherMiscExpenses: state.otherMiscExpenses,
             marginCoefficient: state.marginCoefficient,
+            monthlyTaxes: state.monthlyTaxes,
             otherExpenses: state.otherExpenses,
+            boutiqueProducts: state.boutiqueProducts,
             loanAmount: state.loanAmount,
             loanInterestRate: state.loanInterestRate,
             loanDurationMonths: state.loanDurationMonths,
