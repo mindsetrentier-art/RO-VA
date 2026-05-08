@@ -206,9 +206,10 @@ export function useCountUp(value: number, format?: (v: number) => string) {
 }
 
 // --- Components ---
-const Card = ({ children, className = "", bgIcon: BgIcon = Shield }: any) => (
+const Card = ({ children, className = "", bgIcon: BgIcon = Shield, onClick }: any) => (
   <div
     className={`relative bg-[var(--card)] border border-[var(--border)] rounded-[16px] shadow-sm p-6 card-hover overflow-hidden ${className} transition-colors duration-300`}
+    onClick={onClick}
   >
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 z-0">
       <BgIcon size={120} className="text-[var(--primary)]" />
@@ -1432,24 +1433,10 @@ const DashboardView = () => {
         </div>
         <div className="h-48 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
+            <LineChart
               data={data}
               margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
             >
-              <defs>
-                <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor="var(--primary)"
-                    stopOpacity={0.3}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor="var(--primary)"
-                    stopOpacity={0}
-                  />
-                </linearGradient>
-              </defs>
               <XAxis
                 dataKey="name"
                 axisLine={false}
@@ -1470,15 +1457,20 @@ const DashboardView = () => {
                   "Bénéfice",
                 ]}
               />
-              <Area
+              <Line
                 type="monotone"
                 dataKey="val"
                 stroke="var(--primary)"
                 strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#colorVal)"
+                dot={false}
+                activeDot={{
+                  r: 6,
+                  fill: "var(--primary)",
+                  stroke: "var(--card)",
+                  strokeWidth: 2,
+                }}
               />
-            </AreaChart>
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </Card>
@@ -3795,7 +3787,7 @@ const StockView = () => {
                         (results.recommendedMinStock *
                           store.safetyStockAlertThreshold) /
                         100
-                      ).toFixed(0)}{" "}
+                      )?.toFixed(0) || "0"}{" "}
                       u.).
                     </p>
                   </div>
@@ -3810,7 +3802,7 @@ const StockView = () => {
                     </p>
                     <p className="text-[10px] text-amber-300 opacity-80">
                       Vous avez moins de {store.lowCoverageThreshold} jours de
-                      stock ({results.stockDurationDays.toFixed(0)} j.). Risque
+                      stock ({results?.stockDurationDays?.toFixed(0) || "0"} j.). Risque
                       d'interruption.
                     </p>
                   </div>
@@ -4045,7 +4037,7 @@ const StockView = () => {
                 className={`text-xs ${isSafetyStockCritical ? "text-rose-400/80" : "text-amber-400/80"} leading-relaxed`}
               >
                 {isSafetyStockCritical
-                  ? `Votre stock moyen (${results.averageStock.toFixed(0)} u.) est inférieur au seuil d'alerte défini (${store.safetyStockAlertThreshold}% du recommandé).`
+                  ? `Votre stock moyen (${results?.averageStock?.toFixed(0) || "0"} u.) est inférieur au seuil d'alerte défini (${store.safetyStockAlertThreshold}% du recommandé).`
                   : `Attention : votre couverture de stock est inférieure à votre seuil personnalisé (${store.lowCoverageThreshold} jours).`}
               </p>
             </div>
@@ -4097,19 +4089,19 @@ const StockView = () => {
                 ["Stock de Sécurité", `${store.safetyStock} jours`],
                 [
                   "Stock Actuel (Moyen)",
-                  `${results.averageStock.toFixed(0)} u.`,
+                  `${results?.averageStock?.toFixed(0) || "0"} u.`,
                 ],
                 [
                   "Stock Recommandé",
-                  `${results.recommendedMinStock.toFixed(0)} u.`,
+                  `${results?.recommendedMinStock?.toFixed(0) || "0"} u.`,
                 ],
                 [
                   "Quantité à commander",
-                  `${Math.max(0, results.recommendedMinStock - results.averageStock).toFixed(0)} u.`,
+                  `${Math.max(0, (results?.recommendedMinStock || 0) - (results?.averageStock || 0))?.toFixed(0)} u.`,
                 ],
                 [
                   "Coût estimé",
-                  `${(Math.max(0, results.recommendedMinStock - results.averageStock) * store.unitCost).toFixed(2)} €`,
+                  `${(Math.max(0, (results?.recommendedMinStock || 0) - (results?.averageStock || 0)) * (store?.unitCost || 0))?.toFixed(2)} €`,
                 ],
               ],
             });
@@ -4242,70 +4234,185 @@ const InsightsView = () => {
 
 const SupportView = () => {
   const [activeSection, setActiveSection] = useState<
-    "guide" | "faq" | "contact" | "legal"
+    "guide" | "faq" | "lexicon" | "contact" | "legal"
   >("guide");
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [expandedLexicon, setExpandedLexicon] = useState<string | null>(null);
+  const [activeGuideStep, setActiveGuideStep] = useState(0);
+
+  const lexiconGroups = [
+    {
+      level: "Débutant",
+      color: "border-emerald-500/20 text-emerald-400 bg-emerald-500/10",
+      terms: [
+        { term: "Chiffre d'Affaires (CA)", def: "Total des ventes de biens ou de services réalisées sur une période donnée, avant toute déduction." },
+        { term: "Charges Fixes", def: "Dépenses récurrentes qui ne varient pas avec le volume de ventes (ex: loyer, internet, assurances)." },
+        { term: "Charges Variables", def: "Dépenses qui augmentent ou diminuent proportionnellement au volume d'activité ou de production (ex: matières premières, frais d'expédition)." },
+        { term: "Marge Brute", def: "Différence entre le prix de vente d'un produit et son coût de revient ou coût d'achat direct." },
+        { term: "Résultat Net", def: "Somme finale qui reste une fois que toutes les charges (fixes, variables, impôts, amortissements) ont été déduites du chiffre d'affaires." },
+        { term: "Capital Initial", def: "Montant des fonds investis au départ pour financer la création et le développement du projet." },
+        { term: "Prix de Vente Unitaire", def: "Prix auquel un seul produit ou service est vendu au client final." },
+        { term: "Coût de Revient", def: "Somme de toutes les dépenses directes et indirectes nécessaires pour produire et distribuer un produit complet." },
+        { term: "Trésorerie", def: "Somme d'argent liquide immédiatement disponible sur les comptes bancaires et en caisse de l'entreprise. Le nerf de la guerre." },
+        { term: "TVA", def: "Taxe sur la Valeur Ajoutée. Impôt indirect sur la consommation, collecté par l'entreprise pour le compte de l'État." },
+        { term: "Dépenses Marketing", def: "Investissements réalisés pour promouvoir les produits ou l'entreprise (publicité, influenceurs, réseaux sociaux)." },
+        { term: "Salaire Brut", def: "Rémunération du salarié avant déduction des charges sociales et retenues salariales." },
+        { term: "Salaire Net", def: "Montant que reçoit réellement le salarié sur son compte bancaire après déduction." },
+      ]
+    },
+    {
+      level: "Intermédiaire",
+      color: "border-blue-500/20 text-blue-400 bg-blue-500/10",
+      terms: [
+        { term: "Seuil de Rentabilité", def: "Aussi appelé 'Point Mort'. Niveau précis de chiffre d'affaires à partir duquel l'entreprise commence à faire du profit pur (recettes = dépenses totales)." },
+        { term: "ROI", def: "Retour sur Investissement. Ratio puissant mesurant la rentabilité d'un investissement par rapport à son coût initial. S'exprime en %." },
+        { term: "Taux de Marge", def: "Ratio entre la marge commerciale et le coût d'achat. Indique la rentabilité appliquée sur l'achat d'origine." },
+        { term: "Taux de Marque", def: "Ratio fondamental entre la marge commerciale et le prix de vente final. Indique la proportion de marge dans le prix final." },
+        { term: "Charges Patronales", def: "Cotisations sociales payées par l'employeur en plus du salaire brut, pour financer le chômage, la retraite de ses salariés, etc." },
+        { term: "BFR", def: "Besoin en Fonds de Roulement. Somme d'argent nécessaire pour financer le décalage temporel entre les paiements clients et les paiements fournisseurs." },
+        { term: "Coefficient Multiplicateur", def: "Chiffre simple par lequel l'entrepreneur multiplie le coût d'achat pour obtenir le prix de vente final (ex: x3)." },
+        { term: "Rotation des Stocks", def: "Turnover. Fréquence à laquelle le stock moyen est entièrement vendu et remplacé sur une année." },
+        { term: "Couverture de Stock", def: "Nombre stratégique de jours de ventes qu'il est possible de soutenir avec le niveau de stock actuel avant la rupture." },
+        { term: "Amortissement", def: "Division comptable du coût de la perte de valeur d'un actif (ex: véhicule, machine) sur plusieurs années d'utilisation." },
+        { term: "Cash-Flow", def: "Flux de trésorerie réel. Le solde d'argent généré (encaissements moins décaissements). Différent du Résultat Net." },
+        { term: "Stock de Sécurité", def: "Tampon. Quantité minimale de stock conservée jalousement pour faire face aux retards fournisseurs ou aux pics de ventes." },
+        { term: "CAC (Coût d'Acquisition Client)", def: "Dépense totale (marketing, pub, temps) nécessaire en moyenne pour gagner un tout nouveau client." },
+      ]
+    },
+    {
+      level: "Expert",
+      color: "border-[#7C5CFF]/20 text-[#7C5CFF] bg-[#7C5CFF]/10",
+      terms: [
+        { term: "EBITDA / EBE", def: "Excédent Brut d'Exploitation. La mesure de la rentabilité opérationnelle pure avant intérêts, impôts et dépréciation." },
+        { term: "TRI (Taux de Rentabilité Interne)", def: "Taux d'évolution qui annule la Valeur Actuelle Nette (VAN). Il évalue la viabilité absolue d'un projet financier sur le temps." },
+        { term: "VAN (Valeur Actuelle Nette)", def: "Actualisation de tous les flux de trésorerie futurs d'un projet pour tenir compte de la 'valeur temps de l'argent'." },
+        { term: "Capitalisation (Intérêts Composés)", def: "Effet boule de neige. Processus de réinvestissement des bénéfices et intérêts pour générer toujours plus d'intérêts l'année suivante." },
+        { term: "LTV (Lifetime Value)", def: "Estimation mathématique du chiffre d'affaires (ou marge) total net qu'une entreprise espère générer avec un usager tout au long de sa vie de client." },
+        { term: "Biais de Survie", def: "Erreur logique d'analyse consistant à s'inspirer uniquement des modèles ayant réussi (les survivants) tout en ignorant ceux qui ont échoué pour les mêmes raisons." },
+        { term: "Élasticité-Prix", def: "Concept éco. Mesure la résilience de la demande : est-ce que les ventes chuteront de beaucoup si le prix augmente de 10% ?" },
+        { term: "Levier Financier", def: "Technique d'endettement volontaire (prêt) pour sur-investir, avec l'espoir que l'investissement rapporte plus que le coût de la dette. Risqué." },
+        { term: "COGS", def: "Cost of Goods Sold. Strict coût matériel et direct lié uniquement à la création/distribution des biens expédiés (hors marketing ou fixes)." },
+        { term: "Taux d'Attrition (Churn Rate)", def: "Pourcentage mortel. Taux d'abonnés ou acheteurs perdus/désabonnés sur une période donnée (ex: mois)." },
+        { term: "Marge Opérationnelle (EBIT margin)", def: "Le cœur de métier. Ratio évaluant le profit réel et strict de l'activité commerciale avant le jeu financier et l'administratif d'impôts." },
+        { term: "Valorisation Pre / Post-Money", def: "Valeur attribuée à l'entité juste avant l'injection de capitaux d'investisseurs (Pre), et immédiatement après (Post)." },
+        { term: "Burn Rate", def: "Rythme de désintégration. Vitesse (généralement mensuelle) à laquelle une startup avale sa trésorerie brute sous perfusion avant son seuil de rentabilité." },
+      ]
+    }
+  ];
 
   const guideSteps = [
     {
-      title: "Étape 1 : Créer votre Produit",
-      desc: "Cliquez sur le bouton '+' ou 'Ajouter un Produit' sur le Dashboard. Renseignez votre prix d'achat et choisissez un coefficient (x3 recommandé).",
+      title: "Étape 1 : Configuration et Paramétrage",
+      desc: "Définissez ici l'objectif de votre simulation. Renseignez vos charges fixes de base et votre capital de départ. Ayez une vision globale de vos investissements de départ avant d'ajouter le reste.",
       icon: Plus,
       color: "bg-emerald-500/20 text-emerald-400",
     },
     {
-      title: "Étape 2 : Simuler les Ventes",
-      desc: "Dans l'onglet 'Stock', ajustez vos prévisions de ventes hebdomadaires pour voir l'impact sur vos besoins de trésorerie.",
+      title: "Étape 2 : L'Équipe et les Charges Patronales",
+      desc: "Intégrez vos salariés (et vous-même) dans la section 'Équipe'. Le logiciel transforme automatiquement vos salaires nets/bruts en un 'Coût Total Entreprise' via la norme française (retraite incluse).",
+      icon: Users,
+      color: "bg-blue-500/20 text-blue-400",
+    },
+    {
+      title: "Étape 3 : Estimation des Ventes (Scénarios)",
+      desc: "Ajustez vos volumes de ventes hebdomadaires pour voir leur impact sur votre trésorerie. C'est ici que vous définissez si votre projet tient la route face à la réalité du marché (Pessimiste, Réaliste, Optimiste).",
       icon: TrendingUp,
       color: "bg-[#7C5CFF]/20 text-[#7C5CFF]",
     },
     {
-      title: "Étape 3 : Analyser la Rentabilité",
-      desc: "Consultez l'onglet 'Analyses' pour voir votre ROI et votre Score Roïva. Ajustez vos coûts si le score est trop bas.",
+      title: "Étape 4 : Le Seuil de Rentabilité (Break-Even)",
+      desc: "Découvrez précisément le moment (jour / semaine / mois) où votre entreprise couvre intégralement l'ensemble de ses charges fixes et variables. Au-delà, c'est du pur bénéfice net.",
       icon: Target,
       color: "bg-amber-500/20 text-amber-400",
     },
-  ];
-
-  const glossary = [
     {
-      term: "Stock Initial / Final",
-      def: "Le stock initial est ce que vous possédez en début de période. Le stock final est ce qui reste après les ventes prévues.",
-    },
-    {
-      term: "Stock Moyen & Ratio",
-      def: "La moyenne de votre stock sur la période. Le ratio mesure la vitesse à laquelle vous vendez et renouvelez votre stock.",
-    },
-    {
-      term: "Couverture (Jours)",
-      def: "Combien de jours votre stock actuel peut durer face à la demande. Une couverture de 14-30 jours est souvent idéale.",
-    },
-    {
-      term: "ROI (Retour sur Investissement)",
-      def: "Le bénéfice généré divisé par le coût total investi. Il mesure l'efficacité de chaque euro dépensé.",
-    },
-    {
-      term: "Marge vs Profit",
-      def: "La marge est le pourcentage de gain sur le prix de vente. Le profit est la somme réelle d'argent qui reste après tous les frais.",
+      title: "Étape 5 : Analyse Avancée & Exports",
+      desc: "Consultez l'onglet 'Analyses' pour valider votre Score Roïva (solidité financière globale). Extrayez le tout en PDF professionnellement formaté pour le présenter à des investisseurs ou à une banque.",
+      icon: Activity,
+      color: "bg-rose-500/20 text-rose-400",
     },
   ];
 
   const faqs = [
     {
-      q: "Comment est calculé le Score Roïva ?",
-      a: "Le score est basé sur la rentabilité, la croissance et la solidité de votre structure de coûts.",
+      q: "Comment est calculé le Score ROÏVA 20 ?",
+      a: "Le Score ROÏVA est un indice de performance global (sur 100) développé spécifiquement. Il pondère trois indicateurs clés : Le ROI (Retour sur Investissement) compte pour 40%, la Marge Nette pour 40%, et la Croissance Annuelle (ou solidité du modèle) pour 20%. Ce score est un thermomètre de santé financière : au-dessus de 70, votre modèle est très résiliant. En dessous, des optimisations s'imposent (augmentation des prix ou réduction des coûts).",
     },
     {
       q: "Puis-je exporter mes simulations ?",
-      a: "Oui, un bouton d'export PDF est disponible dans la vue Analyses.",
+      a: "Oui, absolument. Un bouton de génération de rapport (PDF) est disponible dans la vue Analyses de votre projet. Cela vous permet d'exporter l'ensemble des données, les projections et les graphiques de scénarios pour les présenter à un associé ou une banque.",
     },
     {
       q: "Mes données sont-elles sécurisées ?",
-      a: "Toutes vos simulations sont stockées localement sur votre appareil (Standards RGPD/CNIL).",
+      a: "La sécurité est notre priorité absolue. Vos paramètres et l'historique de vos simulations sont sauvegardés via votre authentification Google, isolés et protégés par les règles de sécurité Firebase. Aucun tiers n'a accès à vos chiffres. Vos données vous appartiennent à 100 % (Standards RGPD).",
     },
     {
       q: "Comment optimiser ma marge ?",
-      a: "Réduisez vos coûts fixes ou augmentez votre coefficient de vente via le menu Ajouter Produit.",
+      a: "L'optimisation passe par deux leviers majeurs : augmentez votre coefficient de vente en ajoutant de la valeur à votre offre (premiumisation) sans toucher au coût de revient, ou réduisez/négociez vos coûts variables et frais logistiques. Le simulateur vous permet de tester ces leviers en temps réel pour voir l'impact net sur votre rentabilité.",
+    },
+    {
+      q: "Comment interpréter les scénarios (Pessimiste, Réaliste, Optimiste) ?",
+      a: "Ces scénarios appliquent des multiplicateurs de tension sur vos prévisions. Le scénario Pessimiste est votre \"stress test\" (-15% de revenus, +15% de coûts) : si vous êtes rentable ici, votre projet est robuste. Le Réaliste reflète vos données brutes (100%), et l'Optimiste simule une hyper-croissance (+25% revenus, -10% coûts) pour évaluer le potentiel maximum.",
+    },
+    {
+      q: "Quelle est l'utilité du \"Seuil de Rentabilité\" (Break-Even) ?",
+      a: "Le seuil de rentabilité (ou point mort) vous indique précisément le chiffre d'affaires minimum à atteindre pour couvrir l'intégralité de vos charges fixes et variables. En dessous, vous perdez de l'argent. Au-dessus, chaque vente supplémentaire génère du profit net. C'est l'indicateur radar prioritaire.",
+    },
+    {
+      q: "Pourquoi les charges patronales sont-elles calculées différemment selon le salaire net ?",
+      a: "En France, le taux de charges n'est pas linéaire. Roïva intègre une évaluation des tranches : les bas salaires bénéficient d'allègements (ex: réduction Fillon), d'où un taux estimé autour de 12%. Au-delà du SMIC, les charges remontent progressivement (environ 40-44%). Cette précision vous évite de fausser vos coûts RH.",
+    },
+    {
+      q: "Comment sont gérées les cotisations à la mutuelle ou autres frais fixes par salarié ?",
+      a: "En mode Boutique, un champ spécifique vous permet de renseigner le coût mensuel de la Mutuelle (et autres frais fixes par employé). Cela s'ajoute automatiquement à la masse salariale pour vous offrir un calcul de 'Coût Total Employeur' extrêmement réaliste.",
+    },
+    {
+      q: "Puis-je comparer plusieurs produits ou plusieurs phases de mon projet ?",
+      a: "Oui ! Utilisez le système de Sauvegardes / Snapshots. Cela vous permet d'enregistrer l'état exact de votre simulation. Vous pouvez ensuite faire des modifications sur votre projet actuel et comparer les résultats (ROI, CA, Marge) avec le snapshot précédent pour voir l'impact de vos choix.",
+    },
+    {
+      q: "Qu'est-ce que la rotation (Turnover) et l'estimation de durée de stock ?",
+      a: "Cette statistique vous indique le nombre de jours (ou semaines) où votre stock actuel pourra couvrir la demande estimée. Un stock qui dort coûte cher en trésorerie. C'est un ratio essentiel pour ne pas se retrouver en sur-stockage massif tout en évitant la rupture.",
+    },
+    {
+      q: "Pourquoi intégrer les paiements TVA et URSSAF mensuels dans les frais fixes ?",
+      a: "Bien que ces prélèvements ne soient pas des charges opérationnelles pures, les omettre crée de fausses impressions de liquidité. Mensualiser la TVA et l'URSSAF dans votre simulation 'Boutique' sécurise l'argent dédié à l'état, de façon à ce qu'il ne soit pas confondu avec votre rentabilité nette exploitable.",
+    },
+    {
+      q: "Comment l'outil calcule-t-il le coût de mon prêt bancaire ?",
+      a: "L'outil Boutique intègre un calculateur d'amortissement automatique. Vous saisissez le capital total emprunté, le taux annuel et la durée. La formule (annuité constante) calcule au centime près la mensualité, qui vient s'ajouter à vos frais fixes mensuels structurels.",
+    },
+    {
+      q: "Que dois-je inclure dans le \"Capital / Investissement Initial\" ?",
+      a: "Il s'agit de TOUTES les sommes réunies pour démarrer (apport personnel, fonds extérieurs, emprunts). Ce montant sert de division (Dénominateur) pour calculer votre ROI (Retour sur Investissement). C'est pour analyser combien rapporte tout cet argent mis sur la table une fois le projet amorcé.",
+    },
+    {
+      q: "Quelle est la différence entre Marge Brute et Marge Nette ?",
+      a: "La Marge Brute, c'est votre Prix de Vente diminué de son simple Coût d'Achats/Production. La Marge Nette, c'est ce qu'il vous reste dans la poche une fois que TOUS les coûts (location, électricité, marketing, salaires) sont payés. C'est le seul indicateur qui confirme des liquidités réelles.",
+    },
+    {
+      q: "Que se passe-t-il si je supprime un produit de mon business plan ?",
+      a: "Le système recalcule dynamiquement tous les graphiques, le ROI, les frais variables totaux et le seuil de rentabilité sans délai. Vous pouvez donc faire de multiples 'Crash Tests' sans risque et sans ruiner votre base d'étude. Ce qui n'est pas sauvegardé dans l'historique est temporaire.",
+    },
+    {
+      q: "Puis-je personnaliser les couleurs et l'interface de l'application ?",
+      a: "Bien sûr, un système de paramètres vous permet de basculer entre le mode Sombre (optimisé pour la fatigue visuelle) et le mode Clair, et d'ajuster les couleurs principales pour s'adapter à vos préférences visuelles personnelles.",
+    },
+    {
+      q: "Que signifie l'alerte 'Couverture de Stock Faible' ou 'Risque de Rupture' ?",
+      a: "Vous pouvez définir des jours de Sécurité (ex: Garder toujours 30 jours de stock). Si les calculs de vente hebdomadaire croisés avec vos réserves indiquent que vous passez sous ce seuil de 30 jours, l'intelligence du tableau de bord passe au statut Alerte Rouge pour anticiper le réassort.",
+    },
+    {
+      q: "Ma typologie d'entreprise (Services purs, Agence) est-elle compatible ?",
+      a: "Roïva est modélisé au niveau de la finance globale et non de l'industrie. Le Mode \"Boutique\" (Structure complète, salaires, fixes lourds) convient parfaitement pour du Retail, du CHR mais aussi une Startup de services, tandis que le mode \"Produit\" servira plutôt aux stratégies mono-article et lancements.",
+    },
+    {
+      q: "Pourquoi recommandez-vous une ligne 'Frais Annexes Inattendus' ?",
+      a: "La grande majorité des business plans omettent les imprévus techniques, les pannes d'équipement ou les frais financiers surprises. Nous recommandons de garder au minimum une ligne d'assurance/imprévus couvrant environ 5% de vos objectifs fixes pour fiabiliser le taux de rentabilité final.",
+    },
+    {
+      q: "Est-ce normal que je sois averti d'une Marge Nette trop basse ?",
+      a: "Oui. En dessous de 10-15% en mode Retail conventionnel, le moindre imprévu logistique pourrait passer le business model en perte totale. Le logiciel agit comme un conseiller financier conservateur : si la sécurité est limite, les indicateurs visuels vireront à l'orange.",
     },
   ];
 
@@ -4357,7 +4464,7 @@ const SupportView = () => {
 
       {/* Navigation Interne */}
       <div className="flex bg-[var(--card)] p-1 rounded-2xl border border-[var(--border)] mb-8 overflow-x-auto no-scrollbar gap-1">
-        {(["guide", "faq", "contact", "legal"] as const).map((s) => (
+        {(["guide", "faq", "lexicon", "contact", "legal"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setActiveSection(s)}
@@ -4371,9 +4478,11 @@ const SupportView = () => {
               ? "Guide"
               : s === "faq"
                 ? "FAQ"
-                : s === "contact"
-                  ? "Contact"
-                  : "Légal"}
+                : s === "lexicon"
+                  ? "Lexique"
+                  : s === "contact"
+                    ? "Contact"
+                    : "Légal"}
           </button>
         ))}
       </div>
@@ -4387,54 +4496,71 @@ const SupportView = () => {
             exit={{ opacity: 0, x: 10 }}
             className="space-y-8"
           >
-            {/* Steps Section */}
+            {/* Steps Section (Interactive Wizard) */}
             <div className="space-y-4">
-              <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest flex items-center gap-2">
-                <MousePointer2 size={16} className="text-[var(--primary)]" />{" "}
-                Premiers Pas
-              </h3>
-              {guideSteps.map((step, i) => (
-                <div
-                  key={i}
-                  className="relative flex gap-4 p-5 bg-[var(--card)] rounded-2xl border border-[var(--border)]"
-                >
-                  <div
-                    className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center ${step.color}`}
-                  >
-                    <step.icon size={20} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-[var(--text)] mb-1">
-                      {step.title}
-                    </h4>
-                    <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-                      {step.desc}
-                    </p>
-                  </div>
+              <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MousePointer2 size={16} className="text-[var(--primary)]" />{" "}
+                  Premiers Pas interactifs
                 </div>
-              ))}
-            </div>
-
-            {/* Glossary Section */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest flex items-center gap-2">
-                <BookOpen size={16} className="text-[var(--primary)]" /> Lexique
-                & Concepts
+                <span className="text-xs text-[var(--text-muted)] font-bold">
+                  Étape {activeGuideStep + 1} sur {guideSteps.length}
+                </span>
               </h3>
-              <div className="grid grid-cols-1 gap-3">
-                {glossary.map((item, i) => (
-                  <div
-                    key={i}
-                    className="p-4 bg-[var(--primary)]/5 rounded-xl border border-[var(--primary)]/10"
+              
+              <div className="relative p-6 bg-[var(--card)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-lg min-h-[220px] flex flex-col justify-between">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeGuideStep}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
                   >
-                    <p className="text-[10px] font-black text-[var(--primary)] uppercase mb-1 tracking-tighter">
-                      {item.term}
-                    </p>
-                    <p className="text-xs text-[var(--text-muted)] leading-tight">
-                      {item.def}
-                    </p>
+                    <div className="flex gap-4 items-start mb-6">
+                      <div
+                        className={`w-12 h-12 rounded-xl shrink-0 flex items-center justify-center ${guideSteps[activeGuideStep].color}`}
+                      >
+                        {React.createElement(guideSteps[activeGuideStep].icon, { size: 24 })}
+                      </div>
+                      <div>
+                        <h4 className="text-base font-bold text-[var(--text)] mb-2">
+                          {guideSteps[activeGuideStep].title}
+                        </h4>
+                        <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                          {guideSteps[activeGuideStep].desc}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--border)]">
+                  <button
+                    onClick={() => setActiveGuideStep(Math.max(0, activeGuideStep - 1))}
+                    disabled={activeGuideStep === 0}
+                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-[var(--text)] bg-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-white/10 transition-colors flex items-center gap-2"
+                  >
+                    <ChevronLeft size={14} /> Précédent
+                  </button>
+                  
+                  <div className="flex gap-1">
+                    {guideSteps.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${activeGuideStep === i ? "w-6 bg-[var(--primary)]" : "w-1.5 bg-[var(--border)]"}`}
+                      />
+                    ))}
                   </div>
-                ))}
+
+                  <button
+                    onClick={() => setActiveGuideStep(Math.min(guideSteps.length - 1, activeGuideStep + 1))}
+                    disabled={activeGuideStep === guideSteps.length - 1}
+                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[var(--primary)] disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-[var(--primary)]/90 transition-colors flex items-center gap-2"
+                  >
+                    Suivant <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -4476,17 +4602,83 @@ const SupportView = () => {
                 </div>
                 <AnimatePresence>
                   {expandedFaq === i && (
-                    <motion.p
+                    <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="text-xs text-gray-400 mt-3 pt-3 border-t border-white/5 leading-relaxed"
                     >
-                      {f.a}
-                    </motion.p>
+                      <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-white/5 leading-relaxed">
+                        {f.a}
+                      </p>
+                    </motion.div>
                   )}
                 </AnimatePresence>
               </Card>
+            ))}
+          </motion.div>
+        )}
+
+        {activeSection === "lexicon" && (
+          <motion.div
+            key="lexicon"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            className="space-y-8"
+          >
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold text-white mb-2">Lexique Financier</h2>
+              <p className="text-sm text-[var(--text-muted)]">
+                Acquérez le vocabulaire d'un directeur financier. Classé par niveau d'expertise.
+              </p>
+            </div>
+
+            {lexiconGroups.map((group, groupIndex) => (
+              <div key={groupIndex} className="space-y-4">
+                <div className={`p-3 rounded-xl border ${group.color} flex items-center justify-between`}>
+                  <h3 className="font-black uppercase tracking-widest text-xs">
+                    Niveau : {group.level}
+                  </h3>
+                  <BookOpen size={16} />
+                </div>
+                
+                <div className="space-y-2">
+                  {group.terms.map((termItem, termIndex) => {
+                    const uniqueId = `${groupIndex}-${termIndex}`;
+                    const isExpanded = expandedLexicon === uniqueId;
+
+                    return (
+                      <Card
+                        key={termIndex}
+                        className="p-3 cursor-pointer hover:bg-white/5 transition-colors border-white/5"
+                        onClick={() => setExpandedLexicon(isExpanded ? null : uniqueId)}
+                      >
+                        <div className="flex justify-between items-center">
+                          <h4 className="text-sm font-bold text-white pr-4">{termItem.term}</h4>
+                          {isExpanded ? (
+                            <ChevronUp size={16} className="text-[#7C5CFF]" />
+                          ) : (
+                            <ChevronDown size={16} className="text-gray-500" />
+                          )}
+                        </div>
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                            >
+                              <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-white/5 leading-relaxed">
+                                {termItem.def}
+                              </p>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
             ))}
           </motion.div>
         )}
@@ -4511,20 +4703,23 @@ const SupportView = () => {
                 techniques ou financières.
               </p>
 
-              <div className="space-y-3">
-                <button className="w-full bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                  <Mail size={18} /> Nous contacter par Email
-                </button>
-
-                <button
-                  onClick={() =>
-                    alert("Un email de récupération a été généré (Simulation)")
-                  }
-                  className="w-full bg-white/10 hover:bg-white/15 text-white font-bold py-4 rounded-2xl transition-all border border-white/5 flex items-center justify-center gap-2"
+              <div className="space-y-4">
+                <a 
+                  href="mailto:support@roiva.fr?subject=Demande%20de%20support%20-%20Ro%C3%AFva"
+                  className="w-full bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
                 >
-                  <Sparkles size={18} className="text- amber-400" /> Générer un
-                  email de récupération
-                </button>
+                  <Mail size={18} /> Nous contacter par Email
+                </a>
+
+                <div className="p-4 bg-[var(--primary)]/10 border border-[var(--primary)]/20 rounded-xl text-left">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield size={16} className="text-[#7C5CFF]" />
+                    <h4 className="text-sm font-bold text-white">Récupération de mot de passe</h4>
+                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Roïva utilise le système d'authentification sécurisé de Google. Vous n'avez pas de mot de passe spécifique à retenir pour Roïva. En cas de perte de vos identifiants, veuillez utiliser la procédure de récupération de compte de Google.
+                  </p>
+                </div>
               </div>
             </Card>
 
@@ -5141,6 +5336,7 @@ const BoutiqueView = () => {
   const [breakEvenPeriod, setBreakEvenPeriod] = useState<
     "Jour" | "Semaine" | "Mois"
   >("Mois");
+  const [showEmployeesList, setShowEmployeesList] = useState(false);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -5196,16 +5392,42 @@ const BoutiqueView = () => {
                   </span>
                 </div>
               </div>
-              <button
-                onClick={store.addEmployee}
-                className="flex items-center gap-2 px-3 py-1.5 bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] text-[10px] font-black rounded-lg transition-all group"
-              >
-                <Plus
-                  size={14}
-                  className="group-hover:rotate-90 transition-transform"
-                />{" "}
-                AGENT
-              </button>
+              <div className="flex items-center gap-2">
+                {store.employees.length > 0 && (
+                  <button
+                    onClick={() => setShowEmployeesList(!showEmployeesList)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] text-[10px] font-black rounded-lg transition-all"
+                  >
+                    {showEmployeesList ? "MASQUER LA LISTE" : "VOIR LA LISTE"}
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    store.addEmployee(true);
+                    setShowEmployeesList(true);
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 text-blue-500 hover:bg-blue-500 text-[10px] font-black rounded-lg transition-all group hover:text-white"
+                >
+                  <User
+                    size={14}
+                    className="group-hover:scale-110 transition-transform"
+                  />{" "}
+                  M'INTÉGRER
+                </button>
+                <button
+                  onClick={() => {
+                    store.addEmployee();
+                    setShowEmployeesList(true);
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] text-[10px] font-black rounded-lg transition-all group hover:text-white"
+                >
+                  <Plus
+                    size={14}
+                    className="group-hover:rotate-90 transition-transform"
+                  />{" "}
+                  AGENT
+                </button>
+              </div>
             </div>
 
             {store.employees.length > 0 && (
@@ -5242,169 +5464,210 @@ const BoutiqueView = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {store.employees.map((emp) => (
-                <motion.div
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  key={emp.id}
-                  className="p-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl relative group"
-                >
-                  <button
-                    onClick={() => store.removeEmployee(emp.id)}
-                    className="absolute top-4 right-4 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-rose-500/10 rounded-lg"
+            {showEmployeesList && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {store.employees.map((emp) => (
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    key={emp.id}
+                    className="p-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl relative group"
                   >
-                    <Trash2 size={14} />
-                  </button>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
-                      <User size={16} className="text-[var(--primary)]" />
-                    </div>
-                    <input
-                      type="text"
-                      value={emp.name}
-                      placeholder="Prénom / Poste"
-                      onChange={(e) =>
-                        store.updateEmployee(emp.id, "name", e.target.value)
-                      }
-                      className="bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none w-full"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
-                        Salaire Net Mensuel
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={emp.salary}
-                          onChange={(e) =>
-                            store.updateEmployee(
-                              emp.id,
-                              "salary",
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
-                          className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
-                          €
-                        </span>
+                    <button
+                      onClick={() => store.removeEmployee(emp.id)}
+                      className="absolute top-4 right-4 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-rose-500/10 rounded-lg"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
+                        <User size={16} className="text-[var(--primary)]" />
                       </div>
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
-                        Taux de Charges
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={`${estimateSalaryCostFrance(emp.salary || 0).charges_percentage}%`}
-                          readOnly
-                          className="w-full bg-[var(--bg)]/50 border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-4">
-                    <div className="bg-white/5 p-2 rounded-lg border border-white/5">
-                      <span className="text-[8px] font-bold text-[var(--text-muted)] uppercase block mb-0.5">
-                        Salaire Brut
-                      </span>
-                      <span className="text-[10px] font-black text-[var(--text)]">
-                        €
-                        {estimateSalaryCostFrance(
-                          emp.salary || 0,
-                        ).brut_salary.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="bg-white/5 p-2 rounded-lg border border-white/5">
-                      <span className="text-[8px] font-bold text-[var(--text-muted)] uppercase block mb-0.5">
-                        Charges Patr.
-                      </span>
-                      <span className="text-[10px] font-black text-rose-400">
-                        €
-                        {estimateSalaryCostFrance(
-                          emp.salary || 0,
-                        ).employer_charges.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-[var(--border)] space-y-1.5">
-                    <div className="flex justify-between items-center text-[10px] font-bold">
-                      <span className="text-[var(--text-muted)] uppercase">
-                        Coût Total Entreprise
-                      </span>
-                      <span className="text-[var(--text)] text-xs font-black">
-                        €
-                        {(
-                          estimateSalaryCostFrance(emp.salary || 0).total_cost +
-                          (store.mutualInsurancePerEmployee || 0)
-                        ).toLocaleString()}{" "}
-                        <span className="text-[8px] font-medium opacity-60">
-                          / mois
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-[10px] font-bold">
-                      <span className="text-[var(--text-muted)] uppercase tracking-wider">
-                        Poids dans la masse salariale
-                      </span>
-                      <span className="text-[var(--primary)] text-xs font-black">
-                        {results.employeeCosts > 0
-                          ? (
-                              ((estimateSalaryCostFrance(emp.salary || 0)
-                                .total_cost +
-                                (store.mutualInsurancePerEmployee || 0)) /
-                                results.employeeCosts) *
-                              100
-                            ).toFixed(1)
-                          : "0.0"}
-                        %
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-[10px] font-bold pb-1">
-                      <span className="text-[var(--text-muted)] uppercase tracking-wider">
-                        Part du budget total
-                      </span>
-                      <span className="text-emerald-500 text-xs font-black">
-                        {results.totalCosts > 0
-                          ? (
-                              (((estimateSalaryCostFrance(emp.salary || 0)
-                                .total_cost +
-                                (store.mutualInsurancePerEmployee || 0)) *
-                                12) /
-                                results.totalCosts) *
-                              100
-                            ).toFixed(1)
-                          : "0.0"}
-                        %
-                      </span>
-                    </div>
-                    <div className="h-1 w-full bg-[var(--border)] rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{
-                          width: `${results.employeeCosts > 0 ? ((estimateSalaryCostFrance(emp.salary || 0).total_cost + (store.mutualInsurancePerEmployee || 0)) / results.employeeCosts) * 100 : 0}%`,
-                        }}
-                        className="h-full bg-[var(--primary)]"
+                      <input
+                        type="text"
+                        value={emp.name}
+                        placeholder="Prénom / Poste"
+                        onChange={(e) =>
+                          store.updateEmployee(emp.id, "name", e.target.value)
+                        }
+                        className="bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none w-full"
                       />
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                          Salaire Net Mensuel
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={emp.salary}
+                            onChange={(e) =>
+                              store.updateEmployee(
+                                emp.id,
+                                "salary",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
+                            €
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                          Taux de Charges (Patronales)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={emp.charges || 45}
+                            onChange={(e) =>
+                              store.updateEmployee(
+                                emp.id,
+                                "charges",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--primary)]/50 focus:border-[var(--primary)] focus:outline-none"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                        <span
+                          className="text-[8px] font-bold text-[var(--text-muted)] uppercase block mb-0.5"
+                          title="Salaire Brut"
+                        >
+                          Brut
+                        </span>
+                        <span className="text-[10px] font-black text-[var(--text)]">
+                          €
+                          {estimateSalaryCostFrance(
+                            emp.salary || 0,
+                            emp.charges,
+                          ).brut_salary.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                        <span
+                          className="text-[8px] font-bold text-[var(--text-muted)] uppercase block mb-0.5"
+                          title="Charges Patronales"
+                        >
+                          Charges
+                        </span>
+                        <span className="text-[10px] font-black text-rose-400">
+                          €
+                          {estimateSalaryCostFrance(
+                            emp.salary || 0,
+                            emp.charges,
+                          ).employer_charges.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                        <span
+                          className="text-[8px] font-bold text-[var(--text-muted)] uppercase block mb-0.5 line-clamp-1"
+                          title="Dont Cotisation Retraite (Norme FR)"
+                        >
+                          Retraite
+                        </span>
+                        <span className="text-[10px] font-black text-emerald-400">
+                          €
+                          {estimateSalaryCostFrance(
+                            emp.salary || 0,
+                            emp.charges,
+                          ).retirement_contribution.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-[var(--border)] space-y-1.5">
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-[var(--text-muted)] uppercase">
+                          Coût Total Entreprise
+                        </span>
+                        <span className="text-[var(--text)] text-xs font-black">
+                          €
+                          {(
+                            estimateSalaryCostFrance(
+                              emp.salary || 0,
+                              emp.charges,
+                            ).total_cost +
+                            (store.mutualInsurancePerEmployee || 0)
+                          ).toLocaleString()}{" "}
+                          <span className="text-[8px] font-medium opacity-60">
+                            / mois
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-[var(--text-muted)] uppercase tracking-wider">
+                          Poids dans la masse salariale
+                        </span>
+                        <span className="text-[var(--primary)] text-xs font-black">
+                          {results.employeeCosts > 0
+                            ? (
+                                ((estimateSalaryCostFrance(
+                                  emp.salary || 0,
+                                  emp.charges,
+                                ).total_cost +
+                                  (store.mutualInsurancePerEmployee || 0)) /
+                                  results.employeeCosts) *
+                                100
+                              ).toFixed(1)
+                            : "0.0"}
+                          %
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-bold pb-1">
+                        <span className="text-[var(--text-muted)] uppercase tracking-wider">
+                          Part du budget total
+                        </span>
+                        <span className="text-emerald-500 text-xs font-black">
+                          {results.totalCosts > 0
+                            ? (
+                                (((estimateSalaryCostFrance(
+                                  emp.salary || 0,
+                                  emp.charges,
+                                ).total_cost +
+                                  (store.mutualInsurancePerEmployee || 0)) *
+                                  12) /
+                                  results.totalCosts) *
+                                100
+                              ).toFixed(1)
+                            : "0.0"}
+                          %
+                        </span>
+                      </div>
+                      <div className="h-1 w-full bg-[var(--border)] rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{
+                            width: `${results.employeeCosts > 0 ? ((estimateSalaryCostFrance(emp.salary || 0, emp.charges).total_cost + (store.mutualInsurancePerEmployee || 0)) / results.employeeCosts) * 100 : 0}%`,
+                          }}
+                          className="h-full bg-[var(--primary)]"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+                {store.employees.length === 0 && (
+                  <div className="col-span-full py-10 border-2 border-dashed border-[var(--border)] rounded-3xl flex flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
+                    <Users size={32} strokeWidth={1} />
+                    <p className="text-xs font-medium">
+                      Aucun employé enregistré. Commencez par en ajouter un.
+                    </p>
                   </div>
-                </motion.div>
-              ))}
-              {store.employees.length === 0 && (
-                <div className="col-span-full py-10 border-2 border-dashed border-[var(--border)] rounded-3xl flex flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
-                  <Users size={32} strokeWidth={1} />
-                  <p className="text-xs font-medium">
-                    Aucun employé enregistré. Commencez par en ajouter un.
-                  </p>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Section Catalogue de Produits */}
@@ -5800,71 +6063,88 @@ const BoutiqueView = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {store.otherExpenses.map((exp) => (
-                <motion.div
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  key={exp.id}
-                  className="p-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl relative group"
-                >
-                  <button
-                    onClick={() => store.removeOtherExpense(exp.id)}
-                    className="absolute top-4 right-4 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-rose-500/10 rounded-lg"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
-                      <MoreHorizontal
-                        size={16}
-                        className="text-[var(--primary)]"
-                      />
-                    </div>
-                    <input
-                      type="text"
-                      value={exp.name}
-                      placeholder="Libellé du frais"
-                      onChange={(e) =>
-                        store.updateOtherExpense(exp.id, "name", e.target.value)
-                      }
-                      className="bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
-                      Montant Mensuel
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={exp.amount}
-                        onChange={(e) =>
-                          store.updateOtherExpense(
-                            exp.id,
-                            "amount",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                        className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
-                        €
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-              {store.otherExpenses.length === 0 && (
-                <div className="col-span-full py-10 border-2 border-dashed border-[var(--border)] rounded-3xl flex flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
-                  <MoreHorizontal size={32} strokeWidth={1} />
-                  <p className="text-xs font-medium">
-                    Aucun frais divers enregistré.
-                  </p>
-                </div>
-              )}
-            </div>
+            {store.otherExpenses.length > 0 ? (
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[500px]">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] bg-[var(--bg)]">
+                      <th className="px-4 py-3 text-[10px] font-black tracking-widest text-[var(--text-muted)] uppercase">
+                        Libellé
+                      </th>
+                      <th className="px-4 py-3 text-[10px] font-black tracking-widest text-[var(--text-muted)] uppercase w-48">
+                        Montant Mensuel
+                      </th>
+                      <th className="px-4 py-3 text-[10px] font-black tracking-widest text-[var(--text-muted)] uppercase w-16 text-right"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <AnimatePresence>
+                      {store.otherExpenses.map((exp) => (
+                        <motion.tr
+                          key={exp.id}
+                          layout
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="border-b border-[var(--border)] last:border-0 group hover:bg-[var(--bg)]/50 transition-colors"
+                        >
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={exp.name}
+                              placeholder="Libellé du frais"
+                              onChange={(e) =>
+                                store.updateOtherExpense(
+                                  exp.id,
+                                  "name",
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none focus:bg-[var(--bg)] transition-colors rounded px-2 py-1.5"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="relative">
+                              <input
+                                type="number"
+                                value={exp.amount}
+                                onChange={(e) =>
+                                  store.updateOtherExpense(
+                                    exp.id,
+                                    "amount",
+                                    parseFloat(e.target.value) || 0,
+                                  )
+                                }
+                                className="w-full bg-[var(--bg)] border border-[var(--border)] focus:border-[var(--primary)] outline-none transition-colors rounded-lg px-3 py-1.5 text-xs font-bold text-[var(--text)]"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
+                                €
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <button
+                              onClick={() => store.removeOtherExpense(exp.id)}
+                              className="text-rose-500 opacity-50 md:opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-rose-500/10 rounded-lg inline-flex"
+                              title="Supprimer la ligne"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </AnimatePresence>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="py-10 border-2 border-dashed border-[var(--border)] rounded-3xl flex flex-col items-center justify-center gap-3 text-[var(--text-muted)] w-full">
+                <MoreHorizontal size={32} strokeWidth={1} />
+                <p className="text-xs font-medium">
+                  Aucun frais divers enregistré.
+                </p>
+              </div>
+            )}
           </section>
         </div>
 
