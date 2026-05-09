@@ -25,6 +25,7 @@ import {
   TrendingUp,
   AlertTriangle,
   ChevronRight,
+  ChevronLeft,
   Activity,
   PieChart,
   Home,
@@ -76,6 +77,7 @@ import {
   HeartPulse,
   Tag,
   ShoppingCart,
+  Cloud,
 } from "lucide-react";
 import { useSimulationStore, ScenarioType, PeriodType } from "./store";
 import {
@@ -101,6 +103,8 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { handleFirestoreError, OperationType } from "./lib/firebaseUtils";
+import { WeatherView } from "./WeatherView";
+import { StatusBar } from "./StatusBar";
 
 // --- Utils ---
 const formatCurrency = (v: number, withM = true) => {
@@ -868,6 +872,7 @@ const FirebaseSync = ({ user }: { user: FirebaseUser }) => {
             addBoutiqueProduct,
             removeBoutiqueProduct,
             updateBoutiqueProduct,
+            setEstablishmentName,
             history,
             snapshots,
             ...persistableData
@@ -1000,6 +1005,7 @@ const FirebaseSync = ({ user }: { user: FirebaseUser }) => {
       addBoutiqueProduct,
       removeBoutiqueProduct,
       updateBoutiqueProduct,
+      setEstablishmentName,
       history,
       snapshots,
       ...persistableData
@@ -1058,6 +1064,7 @@ const FirebaseSync = ({ user }: { user: FirebaseUser }) => {
     store.primaryColor,
     store.secondaryColor,
     store.activeScenario,
+    store.establishmentName,
     isReady,
     user.uid,
   ]);
@@ -4606,6 +4613,7 @@ const SupportView = () => {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
+                      style={{ overflow: "hidden" }}
                     >
                       <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-white/5 leading-relaxed">
                         {f.a}
@@ -4667,6 +4675,7 @@ const SupportView = () => {
                               initial={{ height: 0, opacity: 0 }}
                               animate={{ height: "auto", opacity: 1 }}
                               exit={{ height: 0, opacity: 0 }}
+                              style={{ overflow: "hidden" }}
                             >
                               <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-white/5 leading-relaxed">
                                 {termItem.def}
@@ -5068,7 +5077,7 @@ const SmartInfoBar = ({ visible }: { visible: boolean }) => {
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: "auto", opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
-          className="fixed top-0 w-full z-[70] bg-[#0F172A]/95 backdrop-blur-3xl border-b border-[#7C5CFF]/30 overflow-hidden shadow-2xl max-w-lg mx-auto left-0 right-0 rounded-b-2xl px-4"
+          className="fixed top-8 w-full z-[70] bg-[#0F172A]/95 backdrop-blur-3xl border-b border-[#7C5CFF]/30 overflow-hidden shadow-2xl max-w-lg mx-auto left-0 right-0 rounded-b-2xl px-4"
         >
           <div className="py-4 px-2 flex flex-col gap-4 text-white">
             {/* Time, Date & Geo Info */}
@@ -5330,6 +5339,178 @@ const SettingsView = () => {
   );
 };
 
+const BoutiqueQuickAddModal = ({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) => {
+  const store = useSimulationStore();
+  const [useBenchmark, setUseBenchmark] = useState(true);
+
+  const benchmarks = [
+    { label: "Vêtements", cost: 20, coeff: 2.5, monthlyVolume: 300 },
+    { label: "Café/Snack", cost: 0.8, coeff: 5, monthlyVolume: 1500 },
+    { label: "Cosmétiques", cost: 10, coeff: 4, monthlyVolume: 200 },
+    { label: "Électronique", cost: 150, coeff: 1.5, monthlyVolume: 50 },
+    { label: "Édition", cost: 5, coeff: 3, monthlyVolume: 150 },
+    { label: "Plat (Resto)", cost: 4, coeff: 3.5, monthlyVolume: 800 },
+  ];
+
+  const [localName, setLocalName] = useState("");
+  const [localCost, setLocalCost] = useState(10);
+  const [coeff, setCoeff] = useState(3);
+  const [monthlySales, setMonthlySales] = useState(100);
+
+  const handleBenchmarkSelect = (b: any) => {
+    setLocalName(`Produit (${b.label})`);
+    setLocalCost(b.cost);
+    setCoeff(b.coeff);
+    setMonthlySales(b.monthlyVolume);
+  };
+
+  const handleApply = () => {
+    store.addBoutiqueProduct({
+      name: localName || "Nouveau Produit",
+      unitCost: localCost,
+      marginCoefficient: coeff,
+      expectedVolume: monthlySales * 12,
+    });
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/90 backdrop-blur-md"
+      />
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        className="bg-[var(--card)] border border-[var(--border)] w-full max-w-sm rounded-[2rem] p-6 relative z-10 shadow-3xl overflow-hidden shadow-[var(--primary)]/10 max-h-[90vh] overflow-y-auto"
+      >
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--primary)]/10 blur-[80px] -mr-16 -mt-16 rounded-full" />
+
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-black text-[var(--text)] flex items-center gap-2">
+            <Plus className="text-[var(--primary)]" size={24} /> NOUVEAU PROD.
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-5">
+            <div className="flex bg-[var(--bg)] border border-[var(--border)] rounded-xl p-1">
+              <button
+                onClick={() => setUseBenchmark(true)}
+                className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                  useBenchmark ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
+                }`}
+              >
+                SUGGESTIONS
+              </button>
+              <button
+                onClick={() => setUseBenchmark(false)}
+                className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                  !useBenchmark ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
+                }`}
+              >
+                MANUEL
+              </button>
+            </div>
+
+            {useBenchmark && (
+              <div className="grid grid-cols-2 gap-2">
+                {benchmarks.map((b, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleBenchmarkSelect(b)}
+                    className="p-3 text-left border border-[var(--border)] rounded-xl hover:border-[var(--primary)]/50 bg-[var(--primary)]/5 hover:bg-[var(--primary)]/10 transition-all text-xs group"
+                  >
+                    <div className="font-bold text-[var(--text)] mb-1 group-hover:text-[var(--primary)] transition-colors">{b.label}</div>
+                    <div className="text-[10px] text-[var(--text-muted)]">
+                      Marge x{b.coeff} <br />~ {b.monthlyVolume}/mois
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+          <div>
+            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+              Nom du Produit
+            </label>
+            <input
+              type="text"
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-[var(--primary)]/50 transition-all"
+              placeholder="Ex: T-Shirt Premium"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                Coût U. (€)
+              </label>
+              <input
+                type="number"
+                value={localCost}
+                onChange={(e) => setLocalCost(parseFloat(e.target.value) || 0)}
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm font-bold text-[var(--text)] outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                Coeff. Marge
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={coeff}
+                onChange={(e) => setCoeff(parseFloat(e.target.value) || 0)}
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm font-bold text-[var(--text)] outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+             <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+                Ventes / Mois
+              </label>
+              <input
+                type="number"
+                value={monthlySales}
+                onChange={(e) => setMonthlySales(parseFloat(e.target.value) || 0)}
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm font-bold text-[var(--text)] outline-none"
+              />
+          </div>
+
+          <button
+            onClick={handleApply}
+            className="w-full bg-[var(--primary)] hover:opacity-90 text-white font-black py-4 rounded-xl transition-all shadow-lg active:scale-[0.98] mt-4"
+          >
+            AJOUTER LE PRODUIT 
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 const BoutiqueView = () => {
   const store = useSimulationStore();
   const results = runSimulation(store as any, store.activeScenario);
@@ -5337,6 +5518,39 @@ const BoutiqueView = () => {
     "Jour" | "Semaine" | "Mois"
   >("Mois");
   const [showEmployeesList, setShowEmployeesList] = useState(false);
+  const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+
+  const exportBoutiqueProductsPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(22);
+    doc.setTextColor(124, 92, 255);
+    const title = store.establishmentName 
+      ? `PRODUITS - ${store.establishmentName.toUpperCase()}`
+      : "LISTE DES PRODUITS - BOUTIQUE";
+    doc.text(title, 14, 20);
+
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Généré le ${new Date().toLocaleDateString()}`, 14, 30);
+
+    const tableData = store.boutiqueProducts.map((p) => [
+      p.name,
+      `${p.unitCost.toLocaleString()} €`,
+      `${p.marginCoefficient}x`,
+      `${(p.unitCost * p.marginCoefficient).toLocaleString()} €`,
+      `${(p.unitCost * p.marginCoefficient * p.expectedVolume).toLocaleString()} €`,
+      `${p.expectedVolume.toLocaleString()} u.`,
+    ]);
+
+    autoTable(doc, {
+      startY: 40,
+      headStyles: { fillColor: [124, 92, 255] },
+      head: [["Nom du Produit", "Coût", "Coeff.", "Prix Vente", "CA Annuel", "Vol. Annuel"]],
+      body: tableData,
+    });
+
+    doc.save(`catalogue_produits.pdf`);
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -5352,26 +5566,35 @@ const BoutiqueView = () => {
             Boutique & CHR
           </h1>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-          <div className="flex bg-[var(--card)] p-1 rounded-xl border border-[var(--border)] gap-1 shadow-sm shrink-0">
-            {(["Retail", "CHR"] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => store.setAll({ businessType: type })}
-                className={`px-4 py-2 text-[10px] font-bold rounded-lg transition-all ${
-                  store.businessType === type
-                    ? "bg-[var(--primary)] text-white shadow-lg"
-                    : "text-[var(--text-muted)] hover:text-[var(--text)]"
-                }`}
-              >
-                {type === "Retail" ? "POINTS DE VENTE" : "RESTAURATION / CHR"}
-              </button>
-            ))}
-          </div>
-          <ScenarioToggle
-            value={store.activeScenario}
-            setValue={store.setActiveScenario}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full lg:w-auto overflow-x-auto no-scrollbar">
+          <input
+            type="text"
+            value={store.establishmentName || ""}
+            onChange={(e) => store.setEstablishmentName(e.target.value)}
+            className="bg-[var(--card)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-sm font-bold text-[var(--text)] focus:border-[var(--primary)] outline-none transition-colors w-full sm:w-64 shrink-0 shadow-sm"
+            placeholder="Nom de l'établissement..."
           />
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex bg-[var(--card)] p-1 rounded-xl border border-[var(--border)] gap-1 shadow-sm shrink-0">
+              {(["Retail", "CHR"] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => store.setAll({ businessType: type })}
+                  className={`px-4 py-2 text-[10px] font-bold rounded-lg transition-all ${
+                    store.businessType === type
+                      ? "bg-[var(--primary)] text-white shadow-lg"
+                      : "text-[var(--text-muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {type === "Retail" ? "POINTS DE VENTE" : "RESTAURATION / CHR"}
+                </button>
+              ))}
+            </div>
+            <ScenarioToggle
+              value={store.activeScenario}
+              setValue={store.setActiveScenario}
+            />
+          </div>
         </div>
       </header>
 
@@ -5679,17 +5902,34 @@ const BoutiqueView = () => {
                   Produits & Marges Spécifiques
                 </h2>
               </div>
-              <button
-                onClick={store.addBoutiqueProduct}
-                className="flex items-center gap-2 px-3 py-1.5 bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] text-[10px] font-black rounded-lg transition-all group"
-              >
-                <Plus
-                  size={14}
-                  className="group-hover:rotate-90 transition-transform"
-                />{" "}
-                PRODUIT
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={exportBoutiqueProductsPDF}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] text-[var(--text)] hover:bg-[var(--border)] text-[10px] font-black rounded-lg transition-all"
+                >
+                  <Download size={14} /> EXPORTER PDF
+                </button>
+                <button
+                  onClick={() => setIsAddProductModalOpen(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] text-[10px] font-black rounded-lg transition-all group hover:text-white"
+                >
+                  <Plus
+                    size={14}
+                    className="group-hover:rotate-90 transition-transform"
+                  />{" "}
+                  PRODUIT
+                </button>
+              </div>
             </div>
+
+            <AnimatePresence>
+              {isAddProductModalOpen && (
+                <BoutiqueQuickAddModal
+                  isOpen={isAddProductModalOpen}
+                  onClose={() => setIsAddProductModalOpen(false)}
+                />
+              )}
+            </AnimatePresence>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {store.boutiqueProducts.map((prod) => (
@@ -6324,6 +6564,7 @@ export default function App() {
     | "evolution"
     | "breakeven"
     | "comparison"
+    | "weather"
   >("dashboard");
   const [showSmartBar, setShowSmartBar] = useState(false);
   const store = useSimulationStore();
@@ -6403,9 +6644,11 @@ export default function App() {
       <div className="fixed bottom-[10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[var(--secondary)]/10 blur-[120px] pointer-events-none transition-all duration-700"></div>
 
       <SmartInfoBar visible={showSmartBar} />
+      
+      <StatusBar />
 
       {/* TopNav */}
-      <header className="fixed top-0 w-full z-50 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--border)] flex justify-between items-center px-6 h-16 w-full transition-colors duration-300">
+      <header className="fixed top-8 w-full z-50 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--border)] flex justify-between items-center px-6 h-16 w-full transition-colors duration-300">
         <div className="cursor-pointer" onClick={() => setShowSmartBar(true)}>
           <Logo size="sm" />
         </div>
@@ -6454,33 +6697,36 @@ export default function App() {
       </header>
 
       {/* Content Area */}
-      <AnimatePresence mode="wait">
-        {activeTab === "dashboard" && <DashboardView key="dashboard" />}
-        {activeTab === "simulation" && <SimulationView key="simulation" />}
-        {activeTab === "breakeven" && <BreakEvenView key="breakeven" />}
-        {activeTab === "comparison" && (
-          <ComparisonView
-            key="comparison"
-            onNavigate={() => setActiveTab("simulation")}
-          />
-        )}
-        {activeTab === "evolution" && <EvolutionView key="evolution" />}
-        {activeTab === "stocks" && <StockView key="stocks" />}
-        {activeTab === "scenarios" && <ScenariosView key="scenarios" />}
-        {activeTab === "analyses" && <InsightsView key="analyses" />}
-        {activeTab === "support" && <SupportView key="support" />}
-        {activeTab === "history" && (
-          <HistoryView
-            key="history"
-            onRestore={() => setActiveTab("dashboard")}
-            onCompare={() => setActiveTab("comparison")}
-          />
-        )}
-        {activeTab === "settings" && <SettingsView key="settings" />}
-      </AnimatePresence>
+      <div className="mt-8">
+        <AnimatePresence mode="wait">
+          {activeTab === "dashboard" && <DashboardView key="dashboard" />}
+          {activeTab === "simulation" && <SimulationView key="simulation" />}
+          {activeTab === "breakeven" && <BreakEvenView key="breakeven" />}
+          {activeTab === "comparison" && (
+            <ComparisonView
+              key="comparison"
+              onNavigate={() => setActiveTab("simulation")}
+            />
+          )}
+          {activeTab === "evolution" && <EvolutionView key="evolution" />}
+          {activeTab === "stocks" && <StockView key="stocks" />}
+          {activeTab === "scenarios" && <ScenariosView key="scenarios" />}
+          {activeTab === "analyses" && <InsightsView key="analyses" />}
+          {activeTab === "support" && <SupportView key="support" />}
+          {activeTab === "history" && (
+            <HistoryView
+              key="history"
+              onRestore={() => setActiveTab("dashboard")}
+              onCompare={() => setActiveTab("comparison")}
+            />
+          )}
+          {activeTab === "settings" && <SettingsView key="settings" />}
+          {activeTab === "weather" && <WeatherView key="weather" />}
+        </AnimatePresence>
+      </div>
 
       {/* BottomNav */}
-      <nav className="fixed bottom-0 w-full z-50 bg-[var(--bg)]/95 backdrop-blur-2xl border-t border-[var(--border)] shadow-2xl flex justify-around items-center h-[5.5rem] px-1 pb-6 max-w-lg mx-auto left-0 right-0 rounded-t-3xl transition-colors duration-300">
+      <nav className="fixed bottom-0 w-full z-50 bg-[var(--bg)]/95 backdrop-blur-2xl border-t border-[var(--border)] shadow-2xl flex items-center justify-start gap-2 h-[5.5rem] px-4 pb-6 overflow-x-auto no-scrollbar max-w-lg mx-auto left-0 right-0 rounded-t-3xl transition-colors duration-300">
         <NavItem
           icon={Home}
           label="Dash"
@@ -6510,6 +6756,12 @@ export default function App() {
           label="Stocks"
           active={activeTab === "stocks"}
           onClick={() => setActiveTab("stocks")}
+        />
+        <NavItem
+          icon={Cloud}
+          label="Météo"
+          active={activeTab === "weather"}
+          onClick={() => setActiveTab("weather")}
         />
         <NavItem
           icon={Sparkles}

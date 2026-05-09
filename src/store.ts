@@ -101,6 +101,7 @@ interface SimulationState {
   targetSales: number;
   targetSalesPeriod: "Semaine" | "Mois";
   productName: string;
+  establishmentName: string;
   analysisMode: "Product" | "Project" | "Boutique";
   businessType: "Retail" | "CHR";
   lowCoverageThreshold: number;
@@ -169,6 +170,7 @@ interface SimulationState {
   setTargetSales: (val: number) => void;
   setTargetSalesPeriod: (val: "Semaine" | "Mois") => void;
   setProductName: (val: string) => void;
+  setEstablishmentName: (val: string) => void;
   setAnalysisMode: (val: "Product" | "Project" | "Boutique") => void;
   setBusinessType: (val: "Retail" | "CHR") => void;
   setLowCoverageThreshold: (val: number) => void;
@@ -195,7 +197,7 @@ interface SimulationState {
   removeOtherExpense: (id: string) => void;
   updateOtherExpense: (id: string, field: "name" | "amount", val: any) => void;
 
-  addBoutiqueProduct: () => void;
+  addBoutiqueProduct: (product?: { name: string; unitCost: number; marginCoefficient: number; expectedVolume: number }) => void;
   removeBoutiqueProduct: (id: string) => void;
   updateBoutiqueProduct: (
     id: string,
@@ -246,6 +248,7 @@ export const useSimulationStore = create<SimulationState>()(
       targetSales: 25,
       targetSalesPeriod: "Semaine",
       productName: "Produit Alpha",
+      establishmentName: "Mon Établissement",
       analysisMode: "Product",
       businessType: "Retail",
       lowCoverageThreshold: 15,
@@ -306,6 +309,7 @@ export const useSimulationStore = create<SimulationState>()(
       setTargetSales: (val) => set({ targetSales: val }),
       setTargetSalesPeriod: (val) => set({ targetSalesPeriod: val }),
       setProductName: (val) => set({ productName: val }),
+      setEstablishmentName: (val) => set({ establishmentName: val }),
       setAnalysisMode: (val) => set({ analysisMode: val }),
       setBusinessType: (val) => set({ businessType: val }),
       setLowCoverageThreshold: (val) => set({ lowCoverageThreshold: val }),
@@ -365,16 +369,16 @@ export const useSimulationStore = create<SimulationState>()(
           ),
         })),
 
-      addBoutiqueProduct: () =>
+      addBoutiqueProduct: (product) =>
         set((state) => ({
           boutiqueProducts: [
             ...state.boutiqueProducts,
             {
               id: Math.random().toString(36).substr(2, 9),
-              name: `Produit ${String.fromCharCode(65 + state.boutiqueProducts.length)}`,
-              unitCost: 15,
-              marginCoefficient: state.marginCoefficient || 2.5,
-              expectedVolume: 500,
+              name: product?.name || `Produit ${String.fromCharCode(65 + state.boutiqueProducts.length)}`,
+              unitCost: product?.unitCost || 15,
+              marginCoefficient: product?.marginCoefficient || state.marginCoefficient || 2.5,
+              expectedVolume: product?.expectedVolume || 500,
             },
           ],
         })),
