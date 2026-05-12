@@ -102,14 +102,15 @@ export const WeatherView = () => {
           fetchWeather(position.coords.latitude, position.coords.longitude);
         },
         (error) => {
-          console.error("Geolocation error:", error);
-          setError("Impossible de déterminer votre position. Veuillez autoriser l'accès à la localisation dans votre navigateur.");
-          setLoading(false);
-        }
+          console.error("Geolocation error, falling back to Paris:", error);
+          // Fallback to Paris coordinates: 48.8566, 2.3522
+          fetchWeather(48.8566, 2.3522);
+        },
+        { timeout: 10000, enableHighAccuracy: false, maximumAge: 300000 }
       );
     } else {
-      setError("La géolocalisation n'est pas prise en charge par ce navigateur.");
-      setLoading(false);
+      console.warn("La géolocalisation n'est pas prise en charge par ce navigateur. Utilisation de Paris par défaut.");
+      fetchWeather(48.8566, 2.3522);
     }
   }, [API_KEY]);
 

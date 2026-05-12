@@ -235,18 +235,18 @@ const Button = ({
     <motion.button
       onClick={onClick}
       whileHover={{
-        scale: 1.01,
+        scale: 1.02,
         backgroundColor: isPrimary ? undefined : "var(--border)",
-        y: -1,
+        y: -2,
       }}
       whileTap={{ scale: 0.98 }}
       transition={{
         duration: 0.2,
         ease: "easeOut",
       }}
-      className={`w-full relative group overflow-hidden px-4 py-3 rounded-xl font-medium transition-all ${
+      className={`w-full relative group overflow-hidden px-4 py-3 rounded-xl font-medium transition-all duration-300 ${
         isPrimary
-          ? "text-white shadow-lg shadow-[var(--primary)]/20"
+          ? "text-white shadow-lg shadow-[var(--primary)]/20 hover:shadow-2xl hover:shadow-[var(--primary)]/50"
           : "bg-[var(--card)] text-[var(--text)] border border-[var(--border)]"
       } ${className}`}
     >
@@ -1269,15 +1269,31 @@ const DashboardView = () => {
     );
   }
 
-  // Fake chart data based on net profit
-  const data = [
-    { name: "Jan", val: results.netProfit * 0.1 },
-    { name: "Fév", val: results.netProfit * 0.25 },
-    { name: "Mar", val: results.netProfit * 0.4 },
-    { name: "Avr", val: results.netProfit * 0.45 },
-    { name: "Mai", val: results.netProfit * 0.6 },
-    { name: "Juin", val: results.netProfit * 1.0 },
+  const months = [
+    "Jan",
+    "Fév",
+    "Mar",
+    "Avr",
+    "Mai",
+    "Juin",
+    "Juil",
+    "Aoû",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Déc",
   ];
+  const monthlyProfit = results.netProfit / 12;
+  const monthlyCosts = results.totalCosts / 12;
+
+  const cashFlowData = months.map((month, index) => {
+    const growthFactor = 1 + (state.annualGrowth / 100) * (index / 11);
+    return {
+      name: month,
+      profit: parseFloat(Math.max(0, monthlyProfit * growthFactor).toFixed(2)),
+      costs: parseFloat(Math.max(0, monthlyCosts * growthFactor * 0.95).toFixed(2)),
+    };
+  });
 
   return (
     <motion.div
@@ -1436,37 +1452,86 @@ const DashboardView = () => {
 
       <Card>
         <div className="flex justify-between items-center mb-6">
-          <h3 className="font-semibold text-white">Performance (YTD)</h3>
+          <h3 className="font-semibold text-white">Flux de Trésorerie (12 mois)</h3>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[var(--primary)] shadow-[0_0_8px_var(--primary)] shadow-sm" />
+              <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Bénéfice Net</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_#EF4444] shadow-sm" />
+              <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Frais Totaux</span>
+            </div>
+          </div>
         </div>
-        <div className="h-48 w-full">
+        <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={data}
+            <ComposedChart
+              data={cashFlowData}
               margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
             >
+              <defs>
+                <linearGradient id="colorCosts" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <XAxis
                 dataKey="name"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                tick={{ fontSize: 10, fill: "var(--text-muted)", fontWeight: 700 }}
                 dy={10}
+              />
+              <YAxis 
+                yAxisId="left" 
+                tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, fill: "var(--text-muted)", fontWeight: 700 }}
               />
               <RechartsTooltip
                 contentStyle={{
                   backgroundColor: "var(--card)",
                   border: "1px solid var(--border)",
-                  borderRadius: "8px",
+                  borderRadius: "12px",
+                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+                  backdropFilter: "blur(10px)",
+                  padding: "12px",
                 }}
-                itemStyle={{ color: "var(--text)" }}
-                cursor={{ stroke: "var(--border)" }}
-                formatter={(value: number) => [
+                itemStyle={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  padding: "2px 0",
+                }}
+                labelStyle={{
+                  fontSize: "10px",
+                  color: "var(--text-muted)",
+                  marginBottom: "8px",
+                  textTransform: "uppercase",
+                  fontWeight: 800,
+                  borderBottom: "1px solid var(--border)",
+                  paddingBottom: "4px",
+                }}
+                formatter={(value: number, name: string) => [
                   formatCurrency(value),
-                  "Bénéfice",
+                  name === "profit" ? "Bénéfice Net" : "Frais Totaux",
                 ]}
               />
-              <Line
+              <Area
+                yAxisId="left"
                 type="monotone"
-                dataKey="val"
+                dataKey="costs"
+                stroke="#EF4444"
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#colorCosts)"
+                activeDot={{ r: 4, stroke: "var(--bg)", strokeWidth: 2, fill: "#EF4444" }}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="profit"
                 stroke="var(--primary)"
                 strokeWidth={3}
                 dot={false}
@@ -1477,7 +1542,7 @@ const DashboardView = () => {
                   strokeWidth: 2,
                 }}
               />
-            </LineChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </Card>
@@ -5463,7 +5528,6 @@ const BoutiqueQuickAddModal = ({
   onClose: () => void;
 }) => {
   const store = useSimulationStore();
-  const [useBenchmark, setUseBenchmark] = useState(true);
 
   const benchmarks = [
     { label: "Vêtements", cost: 20, coeff: 2.5, monthlyVolume: 300 },
@@ -5528,41 +5592,25 @@ const BoutiqueQuickAddModal = ({
         </div>
 
         <div className="space-y-5">
-            <div className="flex bg-[var(--bg)] border border-[var(--border)] rounded-xl p-1">
-              <button
-                onClick={() => setUseBenchmark(true)}
-                className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
-                  useBenchmark ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
-                }`}
-              >
-                SUGGESTIONS
-              </button>
-              <button
-                onClick={() => setUseBenchmark(false)}
-                className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
-                  !useBenchmark ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)] hover:text-[var(--text)]"
-                }`}
-              >
-                MANUEL
-              </button>
-            </div>
-
-            {useBenchmark && (
-              <div className="grid grid-cols-2 gap-2">
-                {benchmarks.map((b, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleBenchmarkSelect(b)}
-                    className="p-3 text-left border border-[var(--border)] rounded-xl hover:border-[var(--primary)]/50 bg-[var(--primary)]/5 hover:bg-[var(--primary)]/10 transition-all text-xs group"
-                  >
-                    <div className="font-bold text-[var(--text)] mb-1 group-hover:text-[var(--primary)] transition-colors">{b.label}</div>
-                    <div className="text-[10px] text-[var(--text-muted)]">
-                      Marge x{b.coeff} <br />~ {b.monthlyVolume}/mois
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="mb-2">
+            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
+              Produit de Référence
+            </label>
+            <select
+              onChange={(e) => {
+                const b = benchmarks.find((x) => x.label === e.target.value);
+                if (b) handleBenchmarkSelect(b);
+              }}
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm font-bold text-[var(--text)] outline-none focus:border-[var(--primary)]/50 transition-all appearance-none cursor-pointer"
+            >
+              <option value="">Sélectionner une suggestion...</option>
+              {benchmarks.map((b, i) => (
+                <option key={i} value={b.label}>
+                  {b.label} (Marge x{b.coeff}, ~{b.monthlyVolume}/m)
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div>
             <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
