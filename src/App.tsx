@@ -128,7 +128,7 @@ const Logo = ({
   const textSize =
     size === "lg" ? "text-4xl" : size === "md" ? "text-2xl" : "text-lg";
   const textColor = variant === "white" ? "text-black" : "text-white";
-  const subTextColor = variant === "white" ? "text-gray-500" : "text-[#7C5CFF]";
+  const subTextColor = variant === "white" ? "text-gray-500" : "text-[var(--primary)]";
 
   return (
     <div className={`flex items-center gap-4 ${className}`}>
@@ -137,7 +137,7 @@ const Logo = ({
         <motion.div
           animate={{ rotate: [6, 12, 6] }}
           transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-          className="absolute inset-0 bg-[#7C5CFF] rounded-[30%] opacity-20"
+          className="absolute inset-0 bg-[var(--primary)] rounded-[30%] opacity-20"
         />
         {/* Decorative layer 2 */}
         <motion.div
@@ -146,7 +146,7 @@ const Logo = ({
           className="absolute inset-0 bg-blue-500 rounded-[30%] opacity-10"
         />
         {/* Main Icon Container */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#7C5CFF] via-[#8E72FF] to-[#A88FFF] rounded-2xl shadow-xl flex items-center justify-center overflow-hidden border border-white/20">
+        <div className="absolute inset-0 bg-gradient-to-br from-[var(--primary)] via-[#8E72FF] to-[#A88FFF] rounded-2xl shadow-xl flex items-center justify-center overflow-hidden border border-white/20">
           <div className="absolute -top-4 -right-4 w-12 h-12 bg-white/10 rounded-full blur-xl" />
           <div className="absolute -bottom-4 -left-4 w-12 h-12 bg-blue-400/20 rounded-full blur-xl" />
           <Activity
@@ -355,7 +355,7 @@ const getDashboardInsights = (results: any) => {
       title: "Rendement Solide",
       desc: "Croissance stable et structure de coûts équilibrée.",
       icon: Target,
-      color: "#7C5CFF",
+      color: "var(--primary)",
       type: "Rentabilité",
     });
   } else {
@@ -391,7 +391,7 @@ const getDashboardInsights = (results: any) => {
       title: "Modèle Robuste",
       desc: "Forte résilience face aux variations de volume.",
       icon: Sparkles,
-      color: "#7C5CFF",
+      color: "var(--primary)",
       type: "Solidité",
     });
   } else {
@@ -494,7 +494,7 @@ const ScenarioToggle = ({
 const InsightsCard = ({ insights, title = "Analyses Récentes" }: any) => (
   <Card className="p-0 overflow-hidden">
     <div className="p-5 border-b border-white/5 flex items-center gap-2">
-      <Sparkles size={18} className="text-[#7C5CFF]" />
+      <Sparkles size={18} className="text-[var(--primary)]" />
       <h3 className="font-semibold text-white">{title}</h3>
     </div>
     <div className="flex flex-col">
@@ -510,7 +510,7 @@ const InsightsCard = ({ insights, title = "Analyses Récentes" }: any) => (
             <i.icon size={18} style={{ color: i.color }} />
           </div>
           <div className="flex-1">
-            <h4 className="text-sm font-semibold text-white mb-1 group-hover:text-[#7C5CFF] transition-colors">
+            <h4 className="text-sm font-semibold text-white mb-1 group-hover:text-[var(--primary)] transition-colors">
               {i.title}
             </h4>
             <p className="text-xs text-gray-400 leading-relaxed">{i.desc}</p>
@@ -591,7 +591,7 @@ const PremiumSlider = ({
                 onChange={(e) => setInputValue(e.target.value)}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
-                className="text-sm font-bold text-[#7C5CFF] tabular-nums bg-[#7C5CFF]/20 px-2 py-1 rounded-md border border-[#7C5CFF] text-right w-24 outline-none focus:ring-2 focus:ring-[#7C5CFF]/50"
+                className="text-sm font-bold text-[var(--primary)] tabular-nums bg-[var(--primary)]/20 px-2 py-1 rounded-md border border-[var(--primary)] text-right w-24 outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
               />
             </motion.div>
           ) : (
@@ -605,7 +605,7 @@ const PremiumSlider = ({
               className="group/value cursor-pointer flex items-center gap-2"
             >
               <span
-                className="text-sm font-bold text-[#7C5CFF] tabular-nums bg-[#7C5CFF]/10 px-3 py-1 rounded-md border border-[#7C5CFF]/20 hover:bg-[#7C5CFF]/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                className="text-sm font-bold text-[var(--primary)] tabular-nums bg-[var(--primary)]/10 px-3 py-1 rounded-md border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
                 title="Cliquer pour saisir une valeur"
               >
                 {format(value)}
@@ -628,7 +628,7 @@ const PremiumSlider = ({
           onChange={(e) => onChange(parseFloat(e.target.value))}
           className="slider-custom"
           style={{
-            background: `linear-gradient(to right, #7C5CFF ${percentage}%, rgba(255,255,255,0.1) ${percentage}%)`,
+            background: `linear-gradient(to right, var(--primary) ${percentage}%, rgba(255,255,255,0.1) ${percentage}%)`,
           }}
         />
       </div>
@@ -677,7 +677,7 @@ const Login = () => {
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#0F172A] p-6 overflow-hidden">
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#7C5CFF]/10 blur-[120px] rounded-full -mr-64 -mt-64" />
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[var(--primary)]/10 blur-[120px] rounded-full -mr-64 -mt-64" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/10 blur-[120px] rounded-full -ml-64 -mb-64" />
 
       <motion.div
@@ -1183,9 +1183,9 @@ const QuickAddModal = ({
             </div>
           </div>
 
-          <div className="p-4 bg-[#7C5CFF]/5 rounded-2xl border border-[#7C5CFF]/10 flex justify-between items-center">
+          <div className="p-4 bg-[var(--primary)]/5 rounded-2xl border border-[var(--primary)]/10 flex justify-between items-center">
             <div>
-              <p className="text-[9px] font-black text-[#7C5CFF] uppercase tracking-tighter">
+              <p className="text-[9px] font-black text-[var(--primary)] uppercase tracking-tighter">
                 Prix de vente calculé
               </p>
               <p className="text-xl font-black text-white">
@@ -1210,7 +1210,7 @@ const QuickAddModal = ({
               type="number"
               value={weeklySales}
               onChange={(e) => setWeeklySales(parseFloat(e.target.value) || 0)}
-              className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-[#7C5CFF]/50 transition-all"
+              className="w-full bg-[#1e293b] border border-white/5 rounded-xl px-4 py-3 text-white font-bold outline-none focus:border-[var(--primary)]/50 transition-all"
             />
           </div>
 
@@ -1242,7 +1242,7 @@ const QuickAddModal = ({
 
         <button
           onClick={handleApply}
-          className="w-full mt-8 bg-gradient-to-r from-[#7C5CFF] to-[#2563EB] text-white font-black py-4 rounded-2xl shadow-xl shadow-[#7C5CFF]/20 hover:scale-[1.02] active:scale-[0.98] transition-all uppercase tracking-widest text-xs"
+          className="w-full mt-8 bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] text-white font-black py-4 rounded-2xl shadow-xl shadow-[var(--primary)]/20 hover:scale-[1.02] active:scale-[0.98] transition-all uppercase tracking-widest text-xs"
         >
           Valider le Produit
         </button>
@@ -1399,7 +1399,7 @@ const DashboardView = () => {
           trend="Objectif dépassé"
           icon={Target}
           suffix="%"
-          colorClass="text-[#7C5CFF]"
+          colorClass="text-[var(--primary)]"
         />
         <KPICard
           title="Marge"
@@ -1425,7 +1425,7 @@ const DashboardView = () => {
           <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">
             Analyses Stratégiques
           </h3>
-          <Sparkles size={14} className="text-[#7C5CFF]" />
+          <Sparkles size={14} className="text-[var(--primary)]" />
         </div>
         <div className="grid grid-cols-1 gap-4">
           {getDashboardInsights(results).map((insight, idx) => (
@@ -1522,8 +1522,8 @@ const SimulationView = () => {
       </header>
 
       {/* AI Pulse Narrative */}
-      <div className="bg-[#7C5CFF]/5 border border-[#7C5CFF]/20 rounded-xl p-3 flex items-center gap-3">
-        <div className="w-2 h-2 rounded-full bg-[#7C5CFF] animate-pulse shadow-[0_0_8px_#7C5CFF]"></div>
+      <div className="bg-[var(--primary)]/5 border border-[var(--primary)]/20 rounded-xl p-3 flex items-center gap-3">
+        <div className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse shadow-[0_0_8px_var(--primary)]"></div>
         <p className="text-[10px] font-medium text-gray-300 italic">
           {getAiNarrative()}
         </p>
@@ -1531,7 +1531,7 @@ const SimulationView = () => {
 
       <Card className="p-6">
         <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-3">
-          <Wallet className="text-[#7C5CFF]" size={16} /> Investissement
+          <Wallet className="text-[var(--primary)]" size={16} /> Investissement
         </h3>
         <PremiumSlider
           label="Capital Initial"
@@ -1609,7 +1609,7 @@ const SimulationView = () => {
               type="text"
               value={store.productName}
               onChange={(e) => store.setProductName(e.target.value)}
-              className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2.5 text-white font-bold outline-none focus:border-[#7C5CFF]/50 focus:ring-1 focus:ring-[#7C5CFF]/30 transition-all"
+              className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2.5 text-white font-bold outline-none focus:border-[var(--primary)]/50 focus:ring-1 focus:ring-[var(--primary)]/30 transition-all"
               placeholder={
                 store.analysisMode === "Product"
                   ? "Ex: Produit Alpha"
@@ -1834,7 +1834,7 @@ const SimulationView = () => {
                 action: () => store.setVolume(store.volume * 1.2),
                 impact: "MÉDIUM",
                 icon: Layers,
-                color: "text-[#7C5CFF]",
+                color: "text-[var(--primary)]",
               });
             }
 
@@ -1888,7 +1888,7 @@ const SimulationView = () => {
                   </p>
                   <button
                     onClick={s.action}
-                    className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[#7C5CFF] hover:text-white transition-colors"
+                    className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--primary)] hover:text-white transition-colors"
                   >
                     Appliquer <ArrowRight size={10} />
                   </button>
@@ -1899,15 +1899,15 @@ const SimulationView = () => {
         </div>
       </Card>
 
-      <Card className="p-0 overflow-hidden mb-28 border-[#7C5CFF]/30">
-        <div className="p-5 border-b border-white/5 flex items-center justify-between bg-[#7C5CFF]/5">
+      <Card className="p-0 overflow-hidden mb-28 border-[var(--primary)]/30">
+        <div className="p-5 border-b border-white/5 flex items-center justify-between bg-[var(--primary)]/5">
           <div className="flex items-center gap-2">
-            <Layers className="text-[#7C5CFF]" size={18} />
+            <Layers className="text-[var(--primary)]" size={18} />
             <h3 className="font-bold text-white uppercase tracking-widest text-xs">
               Matrice de Sensibilité ROI
             </h3>
           </div>
-          <span className="text-[10px] text-[#7C5CFF] font-black px-2 py-0.5 bg-[#7C5CFF]/10 rounded border border-[#7C5CFF]/20 uppercase">
+          <span className="text-[10px] text-[var(--primary)] font-black px-2 py-0.5 bg-[var(--primary)]/10 rounded border border-[var(--primary)]/20 uppercase">
             Projections ±20%
           </span>
         </div>
@@ -1979,7 +1979,7 @@ const SimulationView = () => {
                           "bg-[#111827] text-gray-500 grayscale opacity-60";
                         if (isCenter) {
                           cellClass =
-                            "bg-[#7C5CFF]/20 text-white font-black ring-2 ring-[#7C5CFF] z-10 shadow-[0_0_15px_rgba(124,92,255,0.3)]";
+                            "bg-[var(--primary)]/20 text-white font-black ring-2 ring-[var(--primary)] z-10 shadow-[0_0_15px_rgba(124,92,255,0.3)]";
                         } else if (cellRoi > 100) {
                           cellClass =
                             "bg-emerald-500/20 text-emerald-400 font-bold border-emerald-500/20 shadow-inner";
@@ -2044,7 +2044,7 @@ const SimulationView = () => {
 
       {/* Sticky Bottom Bar for Simulation Results */}
       <div className="fixed bottom-[5.5rem] left-0 right-0 p-4 z-40 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/90 to-transparent pointer-events-none flex justify-center">
-        <div className="bg-[#111827] border border-[#7C5CFF]/30 shadow-[0_0_30px_rgba(124,92,255,0.15)] rounded-2xl p-4 flex items-center justify-between w-full max-w-lg pointer-events-auto">
+        <div className="bg-[#111827] border border-[var(--primary)]/30 shadow-[0_0_30px_rgba(124,92,255,0.15)] rounded-2xl p-4 flex items-center justify-between w-full max-w-lg pointer-events-auto">
           <div>
             <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1">
               ROI
@@ -2071,7 +2071,7 @@ const SimulationView = () => {
             <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-1">
               PROFIT
             </p>
-            <p className="text-lg font-bold text-[#7C5CFF] tabular-nums">
+            <p className="text-lg font-bold text-[var(--primary)] tabular-nums">
               {formatCurrency(results.netProfit)}
             </p>
           </div>
@@ -2257,10 +2257,10 @@ const ScenariosView = () => {
           whileTap={{ scale: 0.95 }}
           onClick={exportPDF}
           disabled={isExporting}
-          className="flex items-center gap-2 bg-[#7C5CFF]/10 hover:bg-[#7C5CFF]/20 text-[#7C5CFF] px-4 py-2 rounded-xl text-xs font-bold border border-[#7C5CFF]/20 transition-all disabled:opacity-50"
+          className="flex items-center gap-2 bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 text-[var(--primary)] px-4 py-2 rounded-xl text-xs font-bold border border-[var(--primary)]/20 transition-all disabled:opacity-50"
         >
           {isExporting ? (
-            <div className="w-3 h-3 border-2 border-[#7C5CFF]/20 border-t-[#7C5CFF] rounded-full animate-spin" />
+            <div className="w-3 h-3 border-2 border-[var(--primary)]/20 border-t-[var(--primary)] rounded-full animate-spin" />
           ) : (
             <Download size={14} />
           )}
@@ -2280,7 +2280,7 @@ const ScenariosView = () => {
               </span>
             </div>
           </div>
-          <div className="bg-[#7C5CFF]/10 text-[#7C5CFF] border border-[#7C5CFF]/20 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider">
+          <div className="bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider">
             {store.activeScenario}
           </div>
         </div>
@@ -2293,8 +2293,8 @@ const ScenariosView = () => {
             >
               <defs>
                 <linearGradient id="colorRealiste" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#7C5CFF" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                  <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="var(--secondary)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis
@@ -2328,7 +2328,7 @@ const ScenariosView = () => {
               <Area
                 type="monotone"
                 dataKey="Réaliste"
-                stroke="#7C5CFF"
+                stroke="var(--primary)"
                 strokeWidth={3}
                 fillOpacity={1}
                 fill="url(#colorRealiste)"
@@ -2363,7 +2363,7 @@ const ScenariosView = () => {
                   disabled={store.activeScenario === type}
                   className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
                     compareWith === type
-                      ? "bg-[#7C5CFF]/20 text-[#7C5CFF] border border-[#7C5CFF]"
+                      ? "bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]"
                       : store.activeScenario === type
                         ? "opacity-30 cursor-not-allowed bg-gray-800 text-gray-500 border border-transparent"
                         : "bg-white/5 text-gray-400 border border-transparent hover:bg-white/10"
@@ -2444,8 +2444,8 @@ const ScenariosView = () => {
                           {metric.format(val1 as number)}
                         </p>
                       </div>
-                      <div className="bg-[#7C5CFF]/5 rounded-lg p-2 border border-[#7C5CFF]/20">
-                        <p className="text-[8px] text-[#7C5CFF] uppercase font-bold tracking-tighter mb-1">
+                      <div className="bg-[var(--primary)]/5 rounded-lg p-2 border border-[var(--primary)]/20">
+                        <p className="text-[8px] text-[var(--primary)] uppercase font-bold tracking-tighter mb-1">
                           {compareWith}
                         </p>
                         <p className="text-sm font-bold text-white">
@@ -2487,13 +2487,13 @@ const ScenariosView = () => {
                 key={type}
                 className={`flex justify-between items-center p-3 rounded-lg border ${
                   store.activeScenario === type
-                    ? "bg-[#7C5CFF]/10 border-[#7C5CFF]/30"
+                    ? "bg-[var(--primary)]/10 border-[var(--primary)]/30"
                     : "bg-transparent border-transparent hover:bg-white/5"
                 }`}
                 onClick={() => store.setActiveScenario(type)}
               >
                 <span
-                  className={`font-medium ${store.activeScenario === type ? "text-[#7C5CFF]" : "text-gray-300"}`}
+                  className={`font-medium ${store.activeScenario === type ? "text-[var(--primary)]" : "text-gray-300"}`}
                 >
                   {type}
                 </span>
@@ -2520,7 +2520,7 @@ const ScenariosView = () => {
             >
               <Eye
                 size={16}
-                className="text-[#7C5CFF] group-hover:scale-110 transition-transform"
+                className="text-[var(--primary)] group-hover:scale-110 transition-transform"
               />
               <span className="text-xs">Prévisualiser</span>
             </button>
@@ -2530,7 +2530,7 @@ const ScenariosView = () => {
             <button
               onClick={exportPDF}
               disabled={isExporting}
-              className={`w-full flex items-center justify-center gap-2 bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-[#7C5CFF]/10 ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`w-full flex items-center justify-center gap-2 bg-[var(--primary)] hover:bg-[#6D4AFF] text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-[var(--primary)]/10 ${isExporting ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               {isExporting ? (
                 <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -2599,8 +2599,8 @@ const ScenariosView = () => {
               {/* Modal Header */}
               <div className="p-6 border-b border-white/5 flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#7C5CFF]/20 rounded-xl flex items-center justify-center">
-                    <FileText className="text-[#7C5CFF]" size={20} />
+                  <div className="w-10 h-10 bg-[var(--primary)]/20 rounded-xl flex items-center justify-center">
+                    <FileText className="text-[var(--primary)]" size={20} />
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-white leading-tight">
@@ -2670,7 +2670,7 @@ const ScenariosView = () => {
                         <p className="font-bold text-2xl tracking-tight">
                           {store.productName}
                         </p>
-                        <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-[#7C5CFF]/10 text-[#7C5CFF] rounded text-[10px] font-bold">
+                        <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-[var(--primary)]/10 text-[var(--primary)] rounded text-[10px] font-bold">
                           Scénario {store.activeScenario}
                         </div>
                       </div>
@@ -2720,10 +2720,10 @@ const ScenariosView = () => {
                           </span>
                         </div>
                         <div className="flex justify-between items-end">
-                          <span className="text-sm font-bold text-[#7C5CFF]">
+                          <span className="text-sm font-bold text-[var(--primary)]">
                             Performance ROI
                           </span>
-                          <span className="text-3xl font-black text-[#7C5CFF]">
+                          <span className="text-3xl font-black text-[var(--primary)]">
                             {scenarios[store.activeScenario].roi.toFixed(1)}%
                           </span>
                         </div>
@@ -2735,7 +2735,7 @@ const ScenariosView = () => {
                         Confirmation du Score
                       </p>
                       <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 rounded-full border-4 border-[#7C5CFF] flex items-center justify-center">
+                        <div className="w-16 h-16 rounded-full border-4 border-[var(--primary)] flex items-center justify-center">
                           <span className="text-xl font-black">
                             {scenarios[store.activeScenario].roivaScore}
                           </span>
@@ -2788,7 +2788,7 @@ const ScenariosView = () => {
                     setShowPreview(false);
                     exportPDF();
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white font-bold py-3 rounded-xl transition-all shadow-lg text-sm"
+                  className="flex-1 flex items-center justify-center gap-2 bg-[var(--primary)] hover:bg-[#6D4AFF] text-white font-bold py-3 rounded-xl transition-all shadow-lg text-sm"
                 >
                   <Download size={16} />
                   Confirmer & Télécharger le PDF
@@ -2827,7 +2827,7 @@ const PeriodToggle = ({
         );
       })}
       <div
-        className="absolute top-1 bottom-1 w-[calc(25%-4px)] bg-[#7C5CFF] rounded-lg transition-transform duration-300 ease-out shadow-lg"
+        className="absolute top-1 bottom-1 w-[calc(25%-4px)] bg-[var(--primary)] rounded-lg transition-transform duration-300 ease-out shadow-lg"
         style={{ transform: `translateX(${options.indexOf(value) * 100}%)` }}
       />
     </div>
@@ -3220,7 +3220,7 @@ const ComparisonView: React.FC<{ onNavigate: () => void }> = ({
       <header className="flex justify-between items-end mb-8">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Layers className="text-[#7C5CFF]" size={18} />
+            <Layers className="text-[var(--primary)]" size={18} />
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
               Analyse Comparative
             </p>
@@ -3281,7 +3281,7 @@ const ComparisonView: React.FC<{ onNavigate: () => void }> = ({
                 label: "ROI (Retour sur Inv.)",
                 key: "roi",
                 format: (v: number) => `${v.toFixed(1)}%`,
-                color: "text-[#7C5CFF]",
+                color: "text-[var(--primary)]",
               },
               {
                 label: "Marge Nette",
@@ -3357,10 +3357,10 @@ const ComparisonView: React.FC<{ onNavigate: () => void }> = ({
           )}
         </Card>
 
-        <Card className="p-8 border-[#7C5CFF]/20 bg-[#7C5CFF]/[0.02]">
+        <Card className="p-8 border-[var(--primary)]/20 bg-[var(--primary)]/[0.02]">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-2xl bg-[#7C5CFF]/10 flex items-center justify-center">
-              <DollarSign className="text-[#7C5CFF]" size={20} />
+            <div className="w-10 h-10 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center">
+              <DollarSign className="text-[var(--primary)]" size={20} />
             </div>
             <h3 className="text-sm font-black text-white uppercase tracking-widest">
               Plus Gros Profit
@@ -3368,7 +3368,7 @@ const ComparisonView: React.FC<{ onNavigate: () => void }> = ({
           </div>
           {resultsList.length > 0 && (
             <div>
-              <p className="text-4xl font-black text-[#7C5CFF] tracking-tighter mb-1">
+              <p className="text-4xl font-black text-[var(--primary)] tracking-tighter mb-1">
                 €
                 {Math.round(
                   resultsList.reduce((prev, curr) =>
@@ -3725,6 +3725,19 @@ const StockView = () => {
     results.stockDurationDays < store.lowCoverageThreshold;
   const isCritical = isSafetyStockCritical || isCoverageCritical;
 
+  const historyData = [...store.history]
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .map((item) => {
+      const simResults = runSimulation(item.data, "Réaliste");
+      const datePart =
+        item.date.match(/\d{2}\/\d{2}\/\d{4}/)?.[0] || item.date.split(" ")[0];
+      return {
+        date: datePart,
+        turnover: parseFloat(simResults.stockTurnover.toFixed(2)),
+        coverage: parseFloat(simResults.stockDurationDays.toFixed(0)),
+      };
+    });
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -3850,7 +3863,7 @@ const StockView = () => {
                   onChange={(e) =>
                     store.setTargetSales(parseFloat(e.target.value) || 0)
                   }
-                  className="w-full bg-[#111827] border border-[#7C5CFF]/30 rounded-xl px-4 py-4 text-white font-bold text-2xl outline-none focus:border-[#7C5CFF] focus:ring-1 focus:ring-[#7C5CFF]/30 transition-all shadow-inner"
+                  className="w-full bg-[#111827] border border-[var(--primary)]/30 rounded-xl px-4 py-4 text-white font-bold text-2xl outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]/30 transition-all shadow-inner"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-500 pointer-events-none uppercase">
                   {store.analysisMode === "Product" ? "Unités" : "Projets"}
@@ -3862,7 +3875,7 @@ const StockView = () => {
 
         <div className="mt-8 pt-6 border-t border-white/5">
           <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
-            <Boxes className="text-[#7C5CFF]" size={16} />
+            <Boxes className="text-[var(--primary)]" size={16} />
             {store.analysisMode === "Product"
               ? "Niveaux de Stock"
               : "Disponibilité Ressources"}
@@ -3883,7 +3896,7 @@ const StockView = () => {
                   onChange={(e) =>
                     store.setInitialStock(parseFloat(e.target.value) || 0)
                   }
-                  className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-lg outline-none focus:border-[#7C5CFF]/50 focus:ring-1 focus:ring-[#7C5CFF]/30 transition-all shadow-inner"
+                  className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-lg outline-none focus:border-[var(--primary)]/50 focus:ring-1 focus:ring-[var(--primary)]/30 transition-all shadow-inner"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs uppercase">
                   {store.analysisMode === "Product" ? "u." : "pr."}
@@ -3905,7 +3918,7 @@ const StockView = () => {
                   onChange={(e) =>
                     store.setFinalStock(parseFloat(e.target.value) || 0)
                   }
-                  className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-lg outline-none focus:border-[#7C5CFF]/50 focus:ring-1 focus:ring-[#7C5CFF]/30 transition-all shadow-inner"
+                  className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-lg outline-none focus:border-[var(--primary)]/50 focus:ring-1 focus:ring-[var(--primary)]/30 transition-all shadow-inner"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs uppercase">
                   {store.analysisMode === "Product" ? "u." : "pr."}
@@ -3985,7 +3998,7 @@ const StockView = () => {
           icon={Boxes}
           suffix={store.analysisMode === "Product" ? " u." : " pr."}
           colorClass={
-            isSafetyStockCritical ? "text-rose-400" : "text-[#7C5CFF]"
+            isSafetyStockCritical ? "text-rose-400" : "text-[var(--primary)]"
           }
         />
       </div>
@@ -4069,6 +4082,82 @@ const StockView = () => {
           </div>
         </Card>
       )}
+
+      <Card className="p-6 h-[400px]">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest flex items-center gap-2">
+            <Activity className="text-[var(--primary)]" size={16} />
+            Évolution des Stocks
+          </h3>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[var(--primary)] shadow-[0_0_8px_var(--primary)] shadow-sm" />
+              <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Rotation</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#10B981] shadow-[0_0_8px_#10B981] shadow-sm" />
+              <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase">Couverture (j)</span>
+            </div>
+          </div>
+        </div>
+        {historyData.length < 2 ? (
+          <div className="flex flex-col items-center justify-center h-[250px] text-center space-y-4">
+            <div className="w-16 h-16 bg-[var(--primary)]/10 rounded-full flex items-center justify-center mb-2">
+              <Boxes size={30} className="text-[var(--primary)]" />
+            </div>
+            <p className="text-xs text-[var(--text-muted)] max-w-[200px]">
+              Enregistrez au moins deux simulations dans l'historique pour voir l'évolution.
+            </p>
+          </div>
+        ) : (
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={historyData}>
+                <defs>
+                  <linearGradient id="colorTurnover" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} opacity={0.5} />
+                <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={10} tickLine={false} axisLine={false} tick={{ fontWeight: 700 }} dy={10} />
+                <YAxis yAxisId="left" stroke="var(--text-muted)" fontSize={10} tickLine={false} axisLine={false} tick={{ fontWeight: 700 }} />
+                <YAxis yAxisId="right" orientation="right" stroke="var(--text-muted)" fontSize={10} tickLine={false} axisLine={false} tick={{ fontWeight: 700 }} />
+                <RechartsTooltip
+                  contentStyle={{
+                    backgroundColor: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "12px",
+                    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+                    backdropFilter: "blur(10px)",
+                    padding: "12px",
+                  }}
+                  itemStyle={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    padding: "2px 0",
+                  }}
+                  labelStyle={{
+                    fontSize: "10px",
+                    color: "var(--text-muted)",
+                    marginBottom: "8px",
+                    textTransform: "uppercase",
+                    fontWeight: 800,
+                    borderBottom: "1px solid var(--border)",
+                    paddingBottom: "4px",
+                  }}
+                  formatter={(value: any, name: string) => [
+                    name === "turnover" ? `${value}x` : `${value} j`,
+                    name === "turnover" ? "Rotation" : "Couverture",
+                  ]}
+                />
+                <Area yAxisId="left" type="monotone" dataKey="turnover" name="turnover" stroke="var(--primary)" strokeWidth={4} fillOpacity={1} fill="url(#colorTurnover)" activeDot={{ r: 6, stroke: "var(--bg)", strokeWidth: 2, fill: "var(--primary)" }} />
+                <Line yAxisId="right" type="monotone" dataKey="coverage" name="coverage" stroke="#10B981" strokeWidth={4} dot={{ r: 4, fill: "#10B981", strokeWidth: 2, stroke: "var(--bg)" }} activeDot={{ r: 6, stroke: "var(--bg)", strokeWidth: 2, fill: "#10B981" }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Card>
 
       <div className="pt-4">
         <Button
@@ -4163,7 +4252,7 @@ const InsightsView = () => {
           trend="Sain"
           icon={Shield}
           suffix="%"
-          colorClass="text-[#2563EB]"
+          colorClass="text-[var(--secondary)]"
         />
       </div>
 
@@ -4193,12 +4282,12 @@ const InsightsView = () => {
         Optimisation Recommandée
       </h2>
 
-      <Card className="p-0 border-[#7C5CFF]/30 shadow-[0_0_30px_rgba(124,92,255,0.05)] overflow-hidden">
-        <div className="h-32 bg-gradient-to-br from-[#7C5CFF]/20 to-[#2563EB]/10 relative overflow-hidden flex items-center px-6 border-b border-white/5">
+      <Card className="p-0 border-[var(--primary)]/30 shadow-[0_0_30px_rgba(124,92,255,0.05)] overflow-hidden">
+        <div className="h-32 bg-gradient-to-br from-[var(--primary)]/20 to-[var(--secondary)]/10 relative overflow-hidden flex items-center px-6 border-b border-white/5">
           <div className="absolute -right-4 -bottom-4 opacity-10">
             <PieChart size={120} />
           </div>
-          <span className="bg-[#2563EB] text-white text-[10px] font-bold px-3 py-1 rounded-md uppercase tracking-widest shadow-lg">
+          <span className="bg-[var(--secondary)] text-white text-[10px] font-bold px-3 py-1 rounded-md uppercase tracking-widest shadow-lg">
             Stratégique
           </span>
         </div>
@@ -4210,7 +4299,7 @@ const InsightsView = () => {
             Transférez 15% des actions Tech sous-performantes vers des marchés
             émergents à haut rendement. Ce mouvement devrait augmenter le
             rendement annuel de{" "}
-            <span className="text-[#7C5CFF] font-bold">2,4%</span> tout en
+            <span className="text-[var(--primary)] font-bold">2,4%</span> tout en
             maintenant votre profil de risque.
           </p>
           <Button icon={Zap}>Exécuter la Recommandation</Button>
@@ -4223,7 +4312,7 @@ const InsightsView = () => {
             title: "Optimisation Fiscale",
             desc: "La récupération des pertes dans le secteur de l'énergie pourrait économiser 12 400 €.",
             icon: FileText,
-            color: "#2563EB",
+            color: "var(--secondary)",
           },
           {
             title: "Impact ESG",
@@ -4288,7 +4377,7 @@ const SupportView = () => {
     },
     {
       level: "Expert",
-      color: "border-[#7C5CFF]/20 text-[#7C5CFF] bg-[#7C5CFF]/10",
+      color: "border-[var(--primary)]/20 text-[var(--primary)] bg-[var(--primary)]/10",
       terms: [
         { term: "EBITDA / EBE", def: "Excédent Brut d'Exploitation. La mesure de la rentabilité opérationnelle pure avant intérêts, impôts et dépréciation." },
         { term: "TRI (Taux de Rentabilité Interne)", def: "Taux d'évolution qui annule la Valeur Actuelle Nette (VAN). Il évalue la viabilité absolue d'un projet financier sur le temps." },
@@ -4324,7 +4413,7 @@ const SupportView = () => {
       title: "Étape 3 : Estimation des Ventes (Scénarios)",
       desc: "Ajustez vos volumes de ventes hebdomadaires pour voir leur impact sur votre trésorerie. C'est ici que vous définissez si votre projet tient la route face à la réalité du marché (Pessimiste, Réaliste, Optimiste).",
       icon: TrendingUp,
-      color: "bg-[#7C5CFF]/20 text-[#7C5CFF]",
+      color: "bg-[var(--primary)]/20 text-[var(--primary)]",
     },
     {
       title: "Étape 4 : Le Seuil de Rentabilité (Break-Even)",
@@ -4602,7 +4691,7 @@ const SupportView = () => {
                 <div className="flex justify-between items-center bg-transparent">
                   <h4 className="text-sm font-bold text-white pr-4">{f.q}</h4>
                   {expandedFaq === i ? (
-                    <ChevronUp size={16} className="text-[#7C5CFF]" />
+                    <ChevronUp size={16} className="text-[var(--primary)]" />
                   ) : (
                     <ChevronDown size={16} className="text-gray-500" />
                   )}
@@ -4664,7 +4753,7 @@ const SupportView = () => {
                         <div className="flex justify-between items-center">
                           <h4 className="text-sm font-bold text-white pr-4">{termItem.term}</h4>
                           {isExpanded ? (
-                            <ChevronUp size={16} className="text-[#7C5CFF]" />
+                            <ChevronUp size={16} className="text-[var(--primary)]" />
                           ) : (
                             <ChevronDown size={16} className="text-gray-500" />
                           )}
@@ -4701,8 +4790,8 @@ const SupportView = () => {
             className="space-y-6"
           >
             <Card className="p-8 text-center">
-              <div className="w-16 h-16 bg-[#7C5CFF]/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Mail className="text-[#7C5CFF]" size={28} />
+              <div className="w-16 h-16 bg-[var(--primary)]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="text-[var(--primary)]" size={28} />
               </div>
               <h3 className="text-lg font-bold text-white mb-2">
                 Besoin d'aide ?
@@ -4715,14 +4804,14 @@ const SupportView = () => {
               <div className="space-y-4">
                 <a 
                   href="mailto:support@roiva.fr?subject=Demande%20de%20support%20-%20Ro%C3%AFva"
-                  className="w-full bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full bg-[var(--primary)] hover:bg-[#6D4AFF] text-white font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
                 >
                   <Mail size={18} /> Nous contacter par Email
                 </a>
 
                 <div className="p-4 bg-[var(--primary)]/10 border border-[var(--primary)]/20 rounded-xl text-left">
                   <div className="flex items-center gap-2 mb-2">
-                    <Shield size={16} className="text-[#7C5CFF]" />
+                    <Shield size={16} className="text-[var(--primary)]" />
                     <h4 className="text-sm font-bold text-white">Récupération de mot de passe</h4>
                   </div>
                   <p className="text-xs text-gray-400 leading-relaxed">
@@ -4761,7 +4850,7 @@ const SupportView = () => {
               <Card key={i} className="p-5">
                 <div className="flex gap-4">
                   <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
-                    <doc.icon className="text-[#7C5CFF]" size={20} />
+                    <doc.icon className="text-[var(--primary)]" size={20} />
                   </div>
                   <div>
                     <h4 className="text-xs font-black text-white uppercase tracking-wider mb-2">
@@ -4770,7 +4859,7 @@ const SupportView = () => {
                     <p className="text-[11px] text-gray-400 leading-relaxed italic">
                       "{doc.content}"
                     </p>
-                    <button className="mt-3 flex items-center gap-1.5 text-[9px] font-bold text-[#7C5CFF] hover:underline uppercase tracking-widest">
+                    <button className="mt-3 flex items-center gap-1.5 text-[9px] font-bold text-[var(--primary)] hover:underline uppercase tracking-widest">
                       Voir les détails <ExternalLink size={10} />
                     </button>
                   </div>
@@ -4828,7 +4917,7 @@ const HistoryView: React.FC<{
     >
       <header className="mb-6">
         <div className="flex items-center gap-2 mb-2">
-          <History className="text-[#7C5CFF]" size={18} />
+          <History className="text-[var(--primary)]" size={18} />
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
             Archive des Analyses
           </p>
@@ -4844,7 +4933,7 @@ const HistoryView: React.FC<{
           return (
             <Card
               key={item.id}
-              className={`p-5 group transition-all ${isCompared ? "border-[#7C5CFF] bg-[#7C5CFF]/5" : ""}`}
+              className={`p-5 group transition-all ${isCompared ? "border-[var(--primary)] bg-[var(--primary)]/5" : ""}`}
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex gap-4">
@@ -4852,14 +4941,14 @@ const HistoryView: React.FC<{
                     onClick={() => toggleComparison(item.id)}
                     className={`mt-1 w-5 h-5 rounded border flex items-center justify-center transition-all ${
                       isCompared
-                        ? "bg-[#7C5CFF] border-[#7C5CFF] text-white"
+                        ? "bg-[var(--primary)] border-[var(--primary)] text-white"
                         : "border-white/20 text-transparent hover:border-white/40"
                     }`}
                   >
                     <CheckCircle size={12} />
                   </button>
                   <div>
-                    <h4 className="text-lg font-bold text-white mb-1 group-hover:text-[#7C5CFF] transition-colors">
+                    <h4 className="text-lg font-bold text-white mb-1 group-hover:text-[var(--primary)] transition-colors">
                       {item.productName}
                     </h4>
                     <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider">
@@ -4899,7 +4988,7 @@ const HistoryView: React.FC<{
                   loadFromHistory(item);
                   onRestore();
                 }}
-                className="w-full bg-[#7C5CFF] hover:bg-[#6D4AFF] text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 text-xs"
+                className="w-full bg-[var(--primary)] hover:bg-[#6D4AFF] text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 text-xs"
               >
                 <RotateCcw size={14} /> Restaurer cette Simulation
               </button>
@@ -4964,7 +5053,7 @@ const SmartInfoBar = ({ visible }: { visible: boolean }) => {
             try {
               // Fetch Weather
               const weatherRes = await fetch(
-                `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=weather_code&timezone=auto`,
+                `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`,
               );
               const weatherJson = await weatherRes.json();
 
@@ -4995,12 +5084,18 @@ const SmartInfoBar = ({ visible }: { visible: boolean }) => {
 
               // Construct Forecast
               const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-              const dailyTime = airJson?.daily?.time || [];
+              const dailyTime = airJson?.daily?.time || weatherJson?.daily?.time || [];
               const forecastData = dailyTime
                 .map((time: string, i: number) => {
                   const date = new Date(time);
                   return {
                     day: days[date.getDay()],
+                    tempMax: weatherJson?.daily?.temperature_2m_max?.[i] !== undefined 
+                              ? Math.round(weatherJson.daily.temperature_2m_max[i]) : null,
+                    tempMin: weatherJson?.daily?.temperature_2m_min?.[i] !== undefined 
+                              ? Math.round(weatherJson.daily.temperature_2m_min[i]) : null,
+                    code: weatherJson?.daily?.weather_code?.[i] !== undefined
+                           ? weatherJson.daily.weather_code[i] : null,
                     air:
                       airJson?.daily?.pm2_5?.[i] !== undefined
                         ? airQuality(airJson.daily.pm2_5[i])
@@ -5077,27 +5172,27 @@ const SmartInfoBar = ({ visible }: { visible: boolean }) => {
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: "auto", opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
-          className="fixed top-8 w-full z-[70] bg-[#0F172A]/95 backdrop-blur-3xl border-b border-[#7C5CFF]/30 overflow-hidden shadow-2xl max-w-lg mx-auto left-0 right-0 rounded-b-2xl px-4"
+          className="fixed top-8 w-full z-[70] bg-[#0F172A]/95 backdrop-blur-3xl border-b border-[var(--primary)]/30 overflow-hidden shadow-2xl max-w-lg mx-auto left-0 right-0 rounded-b-2xl px-4"
         >
           <div className="py-4 px-2 flex flex-col gap-4 text-white">
             {/* Time, Date & Geo Info */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Clock size={16} className="text-[#7C5CFF]" />
+                  <Clock size={16} className="text-[var(--primary)]" />
                   <span className="text-sm font-black font-mono tracking-wider tabular-nums">
                     {formatTime(now)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Calendar size={16} className="text-[#7C5CFF]" />
+                  <Calendar size={16} className="text-[var(--primary)]" />
                   <span className="text-[10px] font-bold uppercase tracking-tight text-gray-400">
                     {formatDate(now)}
                   </span>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 justify-center py-1 bg-white/5 rounded-lg border border-white/5">
-                <Globe size={10} className="text-[#7C5CFF]" />
+                <Globe size={10} className="text-[var(--primary)]" />
                 <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
                   {data.city}
                 </span>
@@ -5138,27 +5233,48 @@ const SmartInfoBar = ({ visible }: { visible: boolean }) => {
             </div>
 
             {/* Forecast Mini Grid */}
-            <div className="flex justify-between gap-1 overflow-x-auto no-scrollbar">
-              {data.forecast.map((f, i) => (
-                <div
-                  key={i}
-                  className="flex flex-col items-center p-2 rounded-xl bg-white/5 border border-white/5 min-w-[45px]"
-                >
-                  <span className="text-[7px] font-black text-gray-500 uppercase">
-                    {f.day}
-                  </span>
-                  <div className="flex gap-1 mt-1.5">
-                    <div
-                      className={`w-1.5 h-1.5 rounded-full ${f.air === "Bon" ? "bg-emerald-500" : f.air === "Moyen" ? "bg-amber-500" : "bg-rose-500"}`}
-                      title={`Air: ${f.air}`}
-                    ></div>
-                    <div
-                      className={`w-1.5 h-1.5 rounded-full ${f.pol === "Faible" ? "bg-emerald-500" : f.pol === "Modéré" ? "bg-amber-500" : "bg-rose-500"}`}
-                      title={`Pollen: ${f.pol}`}
-                    ></div>
+            <div className="flex justify-between gap-2 overflow-x-auto no-scrollbar px-1">
+              {data.forecast.map((f, i) => {
+                const getStyle = (code: number | null) => {
+                  if (code == null) return "bg-white/5 border-white/5 text-gray-400";
+                  if (code <= 1) return "bg-gradient-to-br from-amber-400 to-orange-500 border-orange-400/50 text-white shadow-md shadow-orange-500/20"; // Sunny
+                  if (code <= 3) return "bg-gradient-to-br from-slate-400 to-gray-500 border-slate-400/50 text-white shadow-md shadow-slate-500/20"; // Cloud
+                  if (code <= 69) return "bg-gradient-to-br from-sky-400 to-blue-600 border-blue-400/50 text-white shadow-md shadow-blue-500/20"; // Rain
+                  if (code <= 79) return "bg-gradient-to-br from-sky-100 to-blue-200 border-sky-300/50 text-blue-900 shadow-md shadow-blue-200/20"; // Snow
+                  return "bg-gradient-to-br from-violet-500 to-purple-700 border-purple-500/50 text-white shadow-md shadow-purple-600/20"; // Thunder/Storm
+                };
+
+                return (
+                  <div
+                    key={i}
+                    className={`flex flex-col items-center py-2 px-1 rounded-2xl border flex-1 min-w-[55px] ${getStyle(f.code)} transition-all hover:-translate-y-1`}
+                  >
+                    <span className="text-[8px] font-black uppercase mb-1 drop-shadow-sm opacity-90">
+                      {f.day}
+                    </span>
+                    
+                    {f.tempMax !== null && f.tempMin !== null ? (
+                      <div className="flex flex-col items-center mb-1.5 drop-shadow-sm">
+                        <span className="text-xs font-bold leading-none">{f.tempMax}°</span>
+                        <span className="text-[9px] font-semibold opacity-75">{f.tempMin}°</span>
+                      </div>
+                    ) : (
+                      <div className="h-6" /> // Placeholder
+                    )}
+                    
+                    <div className="flex gap-1.5 mt-auto bg-black/10 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full ${f.air === "Bon" ? "bg-emerald-400" : f.air === "Moyen" ? "bg-amber-400" : "bg-rose-400"} shadow-sm`}
+                        title={`Air: ${f.air}`}
+                      ></div>
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full ${f.pol === "Faible" ? "bg-emerald-400" : f.pol === "Modéré" ? "bg-amber-400" : "bg-rose-400"} shadow-sm`}
+                        title={`Pollen: ${f.pol}`}
+                      ></div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </motion.div>
@@ -5498,6 +5614,13 @@ const BoutiqueQuickAddModal = ({
                 className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm font-bold text-[var(--text)] outline-none"
               />
           </div>
+
+              <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 p-4 rounded-xl flex items-center justify-between mb-4">
+                 <span className="text-[10px] font-black uppercase text-[var(--primary)]">Bénéfice estimé/mois</span>
+                 <span className="text-lg font-black text-[var(--primary)]">
+                    {(((localCost * coeff) - localCost) * monthlySales).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                 </span>
+              </div>
 
           <button
             onClick={handleApply}
@@ -6061,6 +6184,18 @@ const BoutiqueView = () => {
                         ).toLocaleString()}
                       </span>
                     </div>
+                    <div className="flex justify-between items-center text-[9px] font-bold">
+                      <span className="text-[var(--text-muted)] uppercase">
+                        Bénéfice estimé / mois
+                      </span>
+                      <span className="text-emerald-400">
+                        €
+                        {(
+                          ((prod.unitCost * prod.marginCoefficient) - prod.unitCost) *
+                          (prod.expectedVolume / 12)
+                        ).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -6536,7 +6671,7 @@ const BoutiqueView = () => {
               <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">
                 Analyses IA
               </h3>
-              <Sparkles size={14} className="text-[#7C5CFF]" />
+              <Sparkles size={14} className="text-[var(--primary)]" />
             </div>
             <div className="grid grid-cols-1 gap-4">
               {getDashboardInsights(results).map((insight, idx) => (
@@ -6547,6 +6682,48 @@ const BoutiqueView = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+const AuraBounce = () => {
+  const [hue, setHue] = useState(0);
+  const [expanded, setExpanded] = useState(true);
+
+  useEffect(() => {
+    // Initial random hue
+    setHue(Math.floor(Math.random() * 360));
+    const timer = setInterval(() => {
+      setHue((prev) => (prev + 35 + Math.floor(Math.random() * 100)) % 360);
+    }, 30000); // changes every 30 seconds
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (expanded) {
+      const timer = setTimeout(() => {
+        setExpanded(false);
+      }, 5000); // Disappears (shrinks) after 5 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [expanded]);
+
+  return (
+    <div 
+      onClick={() => setExpanded(true)}
+      className="fixed z-[100] cursor-pointer transition-all duration-1000 ease-in-out"
+      style={{
+        top: expanded ? '32px' : '0px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: expanded ? '200px' : '40px',
+        height: expanded ? '6px' : '4px',
+        backgroundColor: `hsl(${hue}, 100%, 50%)`,
+        opacity: expanded ? 0.9 : 0.05,
+        borderRadius: '999px',
+        boxShadow: expanded ? `0 0 30px 8px hsl(${hue}, 100%, 60%)` : 'none',
+        filter: expanded ? 'blur(4px)' : 'none'
+      }}
+    />
   );
 };
 
@@ -6609,7 +6786,7 @@ export default function App() {
   if (isAuthChecking) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-[#0F172A]">
-        <div className="w-10 h-10 border-4 border-[#7C5CFF]/20 border-t-[#7C5CFF] rounded-full animate-spin" />
+        <div className="w-10 h-10 border-4 border-[var(--primary)]/20 border-t-[var(--primary)] rounded-full animate-spin" />
       </div>
     );
   }
@@ -6646,6 +6823,8 @@ export default function App() {
       <SmartInfoBar visible={showSmartBar} />
       
       <StatusBar />
+      
+      <AuraBounce />
 
       {/* TopNav */}
       <header className="fixed top-8 w-full z-50 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--border)] flex justify-between items-center px-6 h-16 w-full transition-colors duration-300">
@@ -6790,7 +6969,7 @@ export default function App() {
         />
         <NavItem
           icon={LifeBuoy}
-          label="Aide"
+          label="Support"
           active={activeTab === "support"}
           onClick={() => setActiveTab("support")}
         />
