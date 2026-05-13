@@ -54,11 +54,13 @@ async function startServer() {
           src: `/api/icon?color=${color}&shape=${shape}&size=192&format=png`,
           sizes: "192x192",
           type: "image/png",
+          purpose: "any maskable"
         },
         {
           src: `/api/icon?color=${color}&shape=${shape}&size=512&format=png`,
           sizes: "512x512",
           type: "image/png",
+          purpose: "any maskable"
         },
       ],
     });
@@ -78,6 +80,8 @@ async function startServer() {
 
       // Base design is 192x192 with shape drawn at corner 48, 48 and scale
       // The inner <g> container is 96x96
+      // For PNGs (used for Apple Touch Icon and manifest), we remove rx to avoid black transparent corners
+      const rxAttr = isPng ? "0" : "48";
       const svg = `
       <svg width="${size}" height="${size}" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -90,11 +94,11 @@ async function startServer() {
             <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.9" />
           </linearGradient>
         </defs>
-        <rect width="192" height="192" rx="48" fill="url(#bg)" />
+        <rect width="192" height="192" rx="${rxAttr}" fill="url(#bg)" />
         <g transform="translate(48, 48)">
           ${shapeStr}
         </g>
-        <text x="96" y="176" font-family="'Inter', sans-serif" font-size="16" font-weight="900" fill="#ffffff" opacity="0.4" text-anchor="middle" letter-spacing="4">ROIVA</text>
+        <text x="96" y="176" font-family="'Inter', -apple-system, sans-serif" font-size="16" font-weight="900" fill="#ffffff" opacity="0.4" text-anchor="middle" letter-spacing="4">ROIVA</text>
       </svg>
       `;
 
@@ -175,6 +179,39 @@ async function startServer() {
 
     } catch (e: any) {
       console.error("Error in /api/weather/forecast:", e);
+      res.status(500).json({ error: e.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/weather/air", async (req, res) => {
+    try {
+      const lat = req.query.lat;
+      const lon = req.query.lon;
+      
+      const apiKey = process.env.VITE_OPENWEATHERMAP_API_KEY || process.env.OPENWEATHERMAP_API_KEY;
+
+      if (!apiKey) {
+        return res.status(401).json({ error: "Missing API key" });
+      }
+
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "lat and lon are required" });
+      }
+
+      const airRes = await fetch(
+        `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${apiKey}`
+      );
+
+      if (!airRes.ok) {
+        const errorData = await airRes.json().catch(() => ({}));
+        return res.status(airRes.status).json({ error: errorData.message || "Failed to fetch air pollution" });
+      }
+
+      const airData = await airRes.json();
+      res.json(airData);
+
+    } catch (e: any) {
+      console.error("Error in /api/weather/air:", e);
       res.status(500).json({ error: e.message || "Internal server error" });
     }
   });

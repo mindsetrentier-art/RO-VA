@@ -150,6 +150,15 @@ export const runSimulation = (data: any, scenario: ScenarioType) => {
       : 0;
     const roivaScore = Math.round(roiScoreB + marginScoreB) || 0;
 
+    // BFR (Working Capital Requirement) calculation
+    const CA_TTC = revenue * 1.20; // assuming 20% VAT average
+    const achatsTTC = totalVariableCosts * 1.20;
+    const stockValue = (totalVariableCosts / 365) * (data.inventoryHoldTimeDays || 30);
+    const clientReceivables = (CA_TTC / 365) * (data.customerPaymentDays || 30);
+    const supplierPayables = (achatsTTC / 365) * (data.supplierPaymentDays || 30);
+    const workingCapitalRequirement = stockValue + clientReceivables - supplierPayables;
+    const workingCapitalDays = revenue > 0 ? (workingCapitalRequirement / (CA_TTC / 365)) : 0;
+
     // Stock Equivalents for Boutique
     const averageStock = (data.initialStock + data.finalStock) / 2 || 0;
     const stockTurnover = averageStock > 0 ? totalVariableCosts / averageStock : 0;
@@ -178,6 +187,11 @@ export const runSimulation = (data: any, scenario: ScenarioType) => {
       stockDurationDays,
       stockDurationWeeks,
       recommendedMinStock,
+      workingCapitalRequirement,
+      workingCapitalDays,
+      stockValue,
+      clientReceivables,
+      supplierPayables,
     };
   }
 

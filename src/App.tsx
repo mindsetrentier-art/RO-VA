@@ -78,6 +78,11 @@ import {
   Tag,
   ShoppingCart,
   Cloud,
+  Box,
+  UserCheck,
+  Truck,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import { useSimulationStore, ScenarioType, PeriodType } from "./store";
 import {
@@ -6398,6 +6403,86 @@ const BoutiqueView = () => {
             </div>
           </section>
 
+          {/* Section Gestion des Stocks & BFR */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Box className="text-[var(--primary)]" size={18} />
+                <h2 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">
+                  Gestion des Stocks & BFR
+                </h2>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+              <PremiumSlider
+                label="Stocks moyens (Jours)"
+                value={store.inventoryHoldTimeDays}
+                onChange={store.setInventoryHoldTimeDays}
+                min={0}
+                max={180}
+                icon={Box}
+                format={(v: number) => `${v} Jours`}
+              />
+              <PremiumSlider
+                label="Crédit Clients (Jours)"
+                value={store.customerPaymentDays}
+                onChange={store.setCustomerPaymentDays}
+                min={0}
+                max={120}
+                icon={UserCheck}
+                format={(v: number) => `${v} Jours`}
+              />
+              <PremiumSlider
+                label="Crédit Fournisseurs (Jours)"
+                value={store.supplierPaymentDays}
+                onChange={store.setSupplierPaymentDays}
+                min={0}
+                max={120}
+                icon={Truck}
+                format={(v: number) => `${v} Jours`}
+              />
+            </div>
+            
+            <div className="p-5 bg-[var(--card)] border border-[var(--border)] rounded-2xl grid grid-cols-1 md:grid-cols-4 gap-4 divide-y md:divide-y-0 md:divide-x divide-[var(--border)]">
+              <div className="p-2">
+                <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-1">
+                  Valeur du Stock
+                </p>
+                <p className="text-lg font-black text-[var(--text)]">
+                  €{Math.round(results.stockValue || 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="p-2 md:pl-4">
+                <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-1">
+                  Créances Clients
+                </p>
+                <p className="text-lg font-black text-[var(--text)]">
+                  €{Math.round(results.clientReceivables || 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="p-2 md:pl-4">
+                <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-1">
+                  Dettes Fournisseurs
+                </p>
+                <p className="text-lg font-black text-[var(--text)]">
+                  €{Math.round(results.supplierPayables || 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="p-2 md:pl-4 bg-[var(--primary)]/5 rounded-xl border border-[var(--primary)]/20">
+                <p className="text-[9px] font-black text-[var(--primary)] uppercase tracking-widest mb-1">
+                  Besoins en Fonds de Roul.
+                </p>
+                <p className="text-xl font-black text-[var(--primary)]">
+                  €{Math.round(results.workingCapitalRequirement || 0).toLocaleString()}
+                </p>
+                <p className="text-[10px] font-medium text-[var(--primary)]/70 mt-1">
+                  Soit {(results.workingCapitalDays || 0).toFixed(1)} jours de CA TTC
+                </p>
+              </div>
+            </div>
+          </section>
+
           {/* Section Gestion des Prêts */}
           <section>
             <div className="flex items-center justify-between mb-4">
@@ -6914,6 +6999,137 @@ const AuraBounce = () => {
   );
 };
 
+const SimulationNotifier = () => {
+  const store = useSimulationStore();
+  const [prevResults, setPrevResults] = useState<any>(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [toast, setToast] = useState<{ title: string; message: string; type: "success" | "warning" } | null>(null);
+
+  useEffect(() => {
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        setPushEnabled(true);
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((permission) => {
+          if (permission === "granted") {
+            setPushEnabled(true);
+          }
+        });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    // Avoid running immediately on mount
+    const timer = setTimeout(() => {
+      const results = runSimulation(store as any, store.activeScenario);
+      if (prevResults) {
+        let notifTitle = "";
+        let notifMsg = "";
+        let notifType: "success" | "warning" = "success";
+
+        const roivaDiff = results.roivaScore - prevResults.roivaScore;
+        const marginDiff = results.margin - prevResults.margin;
+
+        if (roivaDiff >= 15) {
+          notifTitle = "Score ROIVA en Hausse !";
+          notifMsg = `Votre score ROIVA a bondi de ${roivaDiff.toFixed(0)} points (${results.roivaScore.toFixed(0)}/100). Excellente optimisation.`;
+          notifType = "success";
+        } else if (roivaDiff <= -15) {
+          notifTitle = "Chute du Score ROIVA";
+          notifMsg = `Le score ROIVA a chuté de ${Math.abs(roivaDiff).toFixed(0)} points (${results.roivaScore.toFixed(0)}/100). Vérifiez vos risques de liquidité.`;
+          notifType = "warning";
+        } else if (results.margin > 0 && prevResults.margin <= 0) {
+          notifTitle = "Rentabilité Atteinte !";
+          notifMsg = `Vos simulations montrent maintenant une marge nette positive (${(results.margin).toFixed(1)}%).`;
+          notifType = "success";
+        } else if (results.margin < 0 && prevResults.margin >= 0) {
+          notifTitle = "Alerte de Rentabilité";
+          notifMsg = `Attention, la marge nette vient de passer en négatif (${(results.margin).toFixed(1)}%).`;
+          notifType = "warning";
+        } else if (results.roi >= 100 && prevResults.roi < 100) {
+          notifTitle = "ROI Exceptionnel (>100%)";
+          notifMsg = `L'investissement initial est doublé selon vos prévisions de ${store.analysisMode}.`;
+          notifType = "success";
+        }
+
+        if (notifTitle) {
+          setToast({ title: notifTitle, message: notifMsg, type: notifType });
+          if (pushEnabled) {
+            new Notification(notifTitle, {
+              body: notifMsg,
+              icon: "/favicon.ico",
+              silent: false,
+            });
+          }
+        }
+      }
+      setPrevResults(results);
+    }, 1000); // 1s debounce to prevent spamming notifications while dragging sliders
+
+    return () => clearTimeout(timer);
+  }, [
+    store.volume,
+    store.unitPrice,
+    store.unitCost,
+    store.fixedCosts,
+    store.initialCapital,
+    store.marketingExpense,
+    store.boutiqueProducts,
+    store.loanAmount,
+    store.loanInterestRate,
+    store.loanDurationMonths,
+    store.activeScenario,
+    store.analysisMode,
+  ]);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  return (
+    <AnimatePresence>
+      {toast && (
+        <motion.div
+          initial={{ opacity: 0, y: -50, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -50, scale: 0.9 }}
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[150] w-full max-w-sm px-4"
+        >
+          <div className={`p-4 rounded-2xl shadow-2xl border backdrop-blur-xl flex items-start gap-4 ${
+            toast.type === "success" 
+            ? "bg-emerald-500/10 border-emerald-500/30" 
+            : "bg-rose-500/10 border-rose-500/30"
+          }`}>
+            <div className={`p-2 rounded-full ${
+              toast.type === "success" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
+            }`}>
+              {toast.type === "success" ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+            </div>
+            <div>
+              <h4 className={`text-sm font-black tracking-widest uppercase ${
+                toast.type === "success" ? "text-emerald-400" : "text-rose-400"
+              }`}>{toast.title}</h4>
+              <p className="text-xs font-medium text-white mt-1 leading-relaxed">
+                {toast.message}
+              </p>
+            </div>
+            <button 
+              onClick={() => setToast(null)}
+              className="ml-auto text-white/50 hover:text-white transition-colors p-1"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 // --- App ---
 export default function App() {
   const [activeTab, setActiveTab] = useState<
@@ -6934,6 +7150,30 @@ export default function App() {
   const store = useSimulationStore();
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        // Fallback to pseudo-fullscreen if HTML5 fullscreen fails
+        setIsFullscreen(true); 
+      });
+    } else {
+      document.exitFullscreen().catch(err => {
+         console.error(`Error attempting to exit fullscreen: ${err.message}`);
+         setIsFullscreen(false);
+      });
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -7002,6 +7242,7 @@ export default function App() {
       }
     >
       <FirebaseSync user={user} />
+      <SimulationNotifier />
 
       {/* Background Ambient Glow */}
       <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[var(--primary)]/10 blur-[120px] pointer-events-none transition-all duration-700"></div>
@@ -7009,61 +7250,85 @@ export default function App() {
 
       <SmartInfoBar visible={showSmartBar} />
       
-      <StatusBar />
+      {!isFullscreen && <StatusBar />}
       
       <AuraBounce />
 
+      <AnimatePresence>
+        {isFullscreen && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            onClick={toggleFullscreen}
+            className="fixed top-6 right-6 z-[999] p-3 bg-[var(--primary)] text-white rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all"
+            title="Quitter Plein Écran"
+          >
+            <Minimize size={20} />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* TopNav */}
-      <header className="fixed top-8 w-full z-50 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--border)] flex justify-between items-center px-6 h-16 w-full transition-colors duration-300">
-        <div className="cursor-pointer" onClick={() => setShowSmartBar(true)}>
-          <Logo size="sm" />
-        </div>
-
-        <div className="hidden sm:block">
-          <AnalysisModeToggle
-            value={store.analysisMode}
-            setValue={store.setAnalysisMode}
-          />
-        </div>
-
-        <div className="flex items-center gap-4">
-          {store.lastSaved && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              key={store.lastSaved}
-              className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-gray-500 font-medium bg-white/5 px-2 py-1 rounded-md border border-white/5"
-            >
-              <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="hidden xs:inline">Sauvegardé à</span>{" "}
-              {store.lastSaved}
-            </motion.div>
-          )}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full border border-[var(--primary)]/30 overflow-hidden bg-white/5 shadow-sm ring-2 ring-[var(--primary)]/10">
-              <img
-                src={
-                  user.photoURL ||
-                  `https://ui-avatars.com/api/?name=${user.displayName || user.email}`
-                }
-                alt="Profile"
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <button
-              onClick={logout}
-              className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-500/10"
-              title="Se déconnecter"
-            >
-              <ExternalLink size={14} />
-            </button>
+      {!isFullscreen && (
+        <header className="fixed top-8 w-full z-50 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--border)] flex justify-between items-center px-6 h-16 transition-colors duration-300">
+          <div className="cursor-pointer" onClick={() => setShowSmartBar(true)}>
+            <Logo size="sm" />
           </div>
-        </div>
-      </header>
+
+          <div className="hidden sm:block">
+            <AnalysisModeToggle
+              value={store.analysisMode}
+              setValue={store.setAnalysisMode}
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+            {store.lastSaved && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                key={store.lastSaved}
+                className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-gray-500 font-medium bg-white/5 px-2 py-1 rounded-md border border-white/5"
+              >
+                <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="hidden xs:inline">Sauvegardé à</span>{" "}
+                {store.lastSaved}
+              </motion.div>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleFullscreen}
+                className="p-1.5 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
+                title="Plein Écran"
+              >
+                <Maximize size={16} />
+              </button>
+              <div className="w-8 h-8 rounded-full border border-[var(--primary)]/30 overflow-hidden bg-white/5 shadow-sm ring-2 ring-[var(--primary)]/10">
+                <img
+                  src={
+                    user.photoURL ||
+                    `https://ui-avatars.com/api/?name=${user.displayName || user.email}`
+                  }
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <button
+                onClick={logout}
+                className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-500/10"
+                title="Se déconnecter"
+              >
+                <ExternalLink size={14} />
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
 
       {/* Content Area */}
-      <div className="mt-8">
+      <div className={isFullscreen ? "mt-4 pt-12 pb-12" : "mt-8"}>
         <AnimatePresence mode="wait">
           {activeTab === "dashboard" && <DashboardView key="dashboard" />}
           {activeTab === "simulation" && <SimulationView key="simulation" />}
@@ -7092,75 +7357,77 @@ export default function App() {
       </div>
 
       {/* BottomNav */}
-      <nav className="fixed bottom-0 w-full z-50 bg-[var(--bg)]/95 backdrop-blur-2xl border-t border-[var(--border)] shadow-2xl flex items-center justify-start gap-2 h-[5.5rem] px-4 pb-6 overflow-x-auto no-scrollbar max-w-lg mx-auto left-0 right-0 rounded-t-3xl transition-colors duration-300">
-        <NavItem
-          icon={Home}
-          label="Dash"
-          active={activeTab === "dashboard"}
-          onClick={() => setActiveTab("dashboard")}
-        />
-        <NavItem
-          icon={Activity}
-          label="Simu"
-          active={activeTab === "simulation"}
-          onClick={() => setActiveTab("simulation")}
-        />
-        <NavItem
-          icon={Target}
-          label="Seuil"
-          active={activeTab === "breakeven"}
-          onClick={() => setActiveTab("breakeven")}
-        />
-        <NavItem
-          icon={TrendingUp}
-          label="Evol."
-          active={activeTab === "evolution"}
-          onClick={() => setActiveTab("evolution")}
-        />
-        <NavItem
-          icon={Boxes}
-          label="Stocks"
-          active={activeTab === "stocks"}
-          onClick={() => setActiveTab("stocks")}
-        />
-        <NavItem
-          icon={Cloud}
-          label="Météo"
-          active={activeTab === "weather"}
-          onClick={() => setActiveTab("weather")}
-        />
-        <NavItem
-          icon={Sparkles}
-          label="IA"
-          active={activeTab === "analyses"}
-          onClick={() => setActiveTab("analyses")}
-          highlight={true}
-        />
-        <NavItem
-          icon={Layers}
-          label="Comp"
-          active={activeTab === "comparison"}
-          onClick={() => setActiveTab("comparison")}
-        />
-        <NavItem
-          icon={History}
-          label="Hist."
-          active={activeTab === "history"}
-          onClick={() => setActiveTab("history")}
-        />
-        <NavItem
-          icon={Settings}
-          label="Param"
-          active={activeTab === "settings"}
-          onClick={() => setActiveTab("settings")}
-        />
-        <NavItem
-          icon={LifeBuoy}
-          label="Support"
-          active={activeTab === "support"}
-          onClick={() => setActiveTab("support")}
-        />
-      </nav>
+      {!isFullscreen && (
+        <nav className="fixed bottom-0 w-full z-50 bg-[var(--bg)]/95 backdrop-blur-2xl border-t border-[var(--border)] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] flex items-center justify-start gap-4 h-[6.5rem] px-6 pb-8 pt-4 overflow-x-auto no-scrollbar max-w-lg mx-auto left-0 right-0 rounded-t-3xl transition-colors duration-300 snap-x">
+          <NavItem
+            icon={Home}
+            label="Dash"
+            active={activeTab === "dashboard"}
+            onClick={() => setActiveTab("dashboard")}
+          />
+          <NavItem
+            icon={Activity}
+            label="Simu"
+            active={activeTab === "simulation"}
+            onClick={() => setActiveTab("simulation")}
+          />
+          <NavItem
+            icon={Target}
+            label="Seuil"
+            active={activeTab === "breakeven"}
+            onClick={() => setActiveTab("breakeven")}
+          />
+          <NavItem
+            icon={TrendingUp}
+            label="Evol."
+            active={activeTab === "evolution"}
+            onClick={() => setActiveTab("evolution")}
+          />
+          <NavItem
+            icon={Boxes}
+            label="Stocks"
+            active={activeTab === "stocks"}
+            onClick={() => setActiveTab("stocks")}
+          />
+          <NavItem
+            icon={Cloud}
+            label="Météo"
+            active={activeTab === "weather"}
+            onClick={() => setActiveTab("weather")}
+          />
+          <NavItem
+            icon={Sparkles}
+            label="IA"
+            active={activeTab === "analyses"}
+            onClick={() => setActiveTab("analyses")}
+            highlight={true}
+          />
+          <NavItem
+            icon={Layers}
+            label="Comp"
+            active={activeTab === "comparison"}
+            onClick={() => setActiveTab("comparison")}
+          />
+          <NavItem
+            icon={History}
+            label="Hist."
+            active={activeTab === "history"}
+            onClick={() => setActiveTab("history")}
+          />
+          <NavItem
+            icon={Settings}
+            label="Param"
+            active={activeTab === "settings"}
+            onClick={() => setActiveTab("settings")}
+          />
+          <NavItem
+            icon={LifeBuoy}
+            label="Support"
+            active={activeTab === "support"}
+            onClick={() => setActiveTab("support")}
+          />
+        </nav>
+      )}
     </div>
   );
 }
@@ -7175,19 +7442,19 @@ const NavItem = ({
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center p-1 flex-1 min-w-0 group transition-all duration-300 ${active ? "scale-105" : "hover:scale-105"}`}
+      className={`flex flex-col items-center justify-center p-1 min-w-[72px] flex-shrink-0 snap-start group transition-all duration-300 ${active ? "-translate-y-1" : "hover:-translate-y-1"}`}
     >
       <div
-        className={`relative flex items-center justify-center w-10 h-8 rounded-full overflow-hidden transition-all duration-300 ${active ? (highlight ? "bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] shadow-[0_0_15px_rgba(124,92,255,0.4)] text-white" : "bg-white/10 text-[var(--text)]") : "bg-transparent text-[var(--text-muted)] group-hover:text-[var(--text)] group-hover:bg-white/5"}`}
+        className={`relative flex items-center justify-center w-14 h-10 rounded-2xl overflow-hidden transition-all duration-300 shadow-sm ${active ? (highlight ? "bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] shadow-[0_5px_15px_rgba(124,92,255,0.4)] text-white" : "bg-white/10 text-[var(--text)] border border-white/10") : "bg-[var(--card)] text-[var(--text-muted)] border border-[var(--border)] group-hover:text-[var(--text)] group-hover:bg-[var(--primary)]/5"}`}
       >
         <Icon
-          size={active ? 20 : 20}
-          className={`transition-colors duration-300`}
+          size={active ? 24 : 22}
+          className={`transition-colors duration-300 drop-shadow-sm`}
           strokeWidth={active ? 2.5 : 2}
         />
       </div>
       <span
-        className={`text-[9px] font-semibold tracking-wide mt-1.5 uppercase transition-colors duration-300 ${active ? "text-[var(--text)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-muted)]"}`}
+        className={`text-[10px] font-black tracking-widest mt-2 uppercase transition-colors duration-300 drop-shadow-sm ${active ? "text-[var(--text)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-muted)]"}`}
       >
         {label}
       </span>

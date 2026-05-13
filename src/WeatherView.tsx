@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Cloud,
   CloudRain,
@@ -13,6 +13,11 @@ import {
   AlertTriangle,
   MapPinOff,
   RefreshCw,
+  Flower2,
+  CloudLightning,
+  Snowflake,
+  CloudFog,
+  Activity
 } from "lucide-react";
 
 interface OpenWeatherMapCurrent {
@@ -30,19 +35,47 @@ interface OpenWeatherMapForecast {
   }[];
 }
 
+interface OpenWeatherMapAirPollution {
+  list: {
+    main: { aqi: number };
+    components: { pm2_5: number; pm10: number };
+  }[];
+}
+
 const getWeatherIcon = (code: number, size = 24, className = "") => {
-  if (code >= 200 && code < 300) return <Zap size={size} className={className} />;
-  if (code >= 300 && code < 600) return <CloudRain size={size} className={className} />;
-  if (code >= 600 && code < 700) return <Cloud size={size} className={className} />; // Snow
-  if (code >= 700 && code < 800) return <Cloud size={size} className={className} />; // Mist
-  if (code === 800) return <Sun size={size} className={className} />;
-  if (code > 800) return <Cloud size={size} className={className} />;
-  return <Sun size={size} className={className} />;
+  if (code >= 200 && code < 300) return <CloudLightning size={size} className={`text-yellow-500 drop-shadow-md ${className}`} />;
+  if (code >= 300 && code < 600) return <CloudRain size={size} className={`text-blue-400 drop-shadow-md ${className}`} />;
+  if (code >= 600 && code < 700) return <Snowflake size={size} className={`text-blue-200 drop-shadow-md ${className}`} />;
+  if (code >= 700 && code < 800) return <CloudFog size={size} className={`text-slate-400 drop-shadow-md ${className}`} />;
+  if (code === 800) return <Sun size={size} className={`text-amber-400 drop-shadow-md ${className}`} fill="currentColor" />;
+  if (code > 800) return <Cloud size={size} className={`text-slate-300 drop-shadow-md ${className}`} fill="currentColor" opacity={0.9} />;
+  return <Sun size={size} className={`text-amber-400 drop-shadow-md ${className}`} fill="currentColor" />;
+};
+
+const getAQIDescription = (aqi: number) => {
+  switch (aqi) {
+    case 1: return { text: "Excellente", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" };
+    case 2: return { text: "Bonne", color: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/20" };
+    case 3: return { text: "Modérée", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" };
+    case 4: return { text: "Mauvaise", color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20" };
+    case 5: return { text: "Très Mauvaise", color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" };
+    default: return { text: "Inconnue", color: "text-slate-500", bg: "bg-slate-500/10", border: "border-slate-500/20" };
+  }
+};
+
+const getSimulatedPollen = (month: number, humidity: number) => {
+  if (month >= 2 && month <= 8) {
+    if (humidity > 70) return { level: "Faible", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" };
+    if (month >= 4 && month <= 6) return { level: "Élevé", color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20" };
+    return { level: "Modéré", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" };
+  }
+  return { level: "Très Faible", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" };
 };
 
 export const WeatherView = () => {
   const [currentWeather, setCurrentWeather] = useState<OpenWeatherMapCurrent | null>(null);
   const [forecast, setForecast] = useState<OpenWeatherMapForecast | null>(null);
+  const [airPollution, setAirPollution] = useState<OpenWeatherMapAirPollution | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [missingApiKey, setMissingApiKey] = useState(false);
@@ -50,12 +83,13 @@ export const WeatherView = () => {
   useEffect(() => {
     const fetchWeather = async (lat: number, lon: number) => {
       try {
-        const [weatherRes, forecastRes] = await Promise.all([
+        const [weatherRes, forecastRes, airRes] = await Promise.all([
           fetch(`/api/weather?lat=${lat}&lon=${lon}`),
           fetch(`/api/weather/forecast?lat=${lat}&lon=${lon}`),
+          fetch(`/api/weather/air?lat=${lat}&lon=${lon}`),
         ]);
 
-        if (weatherRes.status === 401 || forecastRes.status === 401) {
+        if (weatherRes.status === 401 || forecastRes.status === 401 || airRes.status === 401) {
           setMissingApiKey(true);
           setLoading(false);
           return;
@@ -81,9 +115,11 @@ export const WeatherView = () => {
 
         const weatherData = await weatherRes.json();
         const forecastData = await forecastRes.json();
+        const airData = airRes.ok ? await airRes.json() : null;
 
         setCurrentWeather(weatherData);
         setForecast(forecastData);
+        setAirPollution(airData);
         setLoading(false);
       } catch (err: any) {
         console.error("Error fetching weather:", err);
@@ -203,6 +239,7 @@ export const WeatherView = () => {
     if (existingDay) {
       existingDay.temp_min = Math.min(existingDay.temp_min, item.main.temp_min);
       existingDay.temp_max = Math.max(existingDay.temp_max, item.main.temp_max);
+      existingDay.humidity = Math.max(existingDay.humidity || 0, item.main.humidity);
       // Try to get midday weather icon if possible
       const hour = new Date(item.dt * 1000).getHours();
       if (hour >= 11 && hour <= 15) {
@@ -213,11 +250,17 @@ export const WeatherView = () => {
         date,
         temp_min: item.main.temp_min,
         temp_max: item.main.temp_max,
+        humidity: item.main.humidity,
         weather: item.weather[0],
       });
     }
     return acc;
   }, []).slice(0, 5);
+
+  const currentMonth = new Date().getMonth();
+  const pollenStatus = getSimulatedPollen(currentMonth, currentWeather.main.humidity);
+  const aqiValue = airPollution?.list?.[0]?.main?.aqi || 0;
+  const aqiInfo = getAQIDescription(aqiValue);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-4xl mx-auto">
@@ -239,21 +282,21 @@ export const WeatherView = () => {
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="relative overflow-hidden p-6 lg:p-8 bg-gradient-to-br from-[var(--card)] to-[var(--bg)] border border-[var(--border)] rounded-3xl shadow-lg"
+        className="relative overflow-hidden p-6 lg:p-8 bg-gradient-to-br from-[var(--card)] to-[var(--bg)] border border-[var(--border)] rounded-[2rem] shadow-xl"
       >
-        <div className="absolute -right-10 -top-10 opacity-5 pointer-events-none">
-          {getWeatherIcon(currentWeather.weather[0].id, 200)}
+        <div className="absolute -right-10 -top-10 opacity-10 pointer-events-none blur-sm">
+          {getWeatherIcon(currentWeather.weather[0].id, 240)}
         </div>
         
         <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between relative z-10">
           <div>
-            <div className="flex items-center gap-4 mb-2">
-              {getWeatherIcon(currentWeather.weather[0].id, 40, "text-[var(--primary)]")}
-              <span className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-widest">
+            <div className="flex items-center gap-4 mb-3">
+              {getWeatherIcon(currentWeather.weather[0].id, 48)}
+              <span className="text-sm font-bold text-[var(--text)] uppercase tracking-widest bg-[var(--bg)]/50 backdrop-blur-md px-3 py-1 rounded-full border border-[var(--border)]">
                 {currentWeather.weather[0].description}
               </span>
             </div>
-            <div className="text-6xl lg:text-8xl font-black text-[var(--text)] tracking-tighter">
+            <div className="text-7xl lg:text-9xl font-black text-[var(--text)] tracking-tighter drop-shadow-sm">
               {Math.round(currentWeather.main.temp)}°
             </div>
             <p className="text-sm font-medium text-[var(--text-muted)] mt-2">
@@ -261,16 +304,30 @@ export const WeatherView = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
-            <div className="p-4 bg-[var(--bg)]/50 backdrop-blur-sm rounded-2xl border border-[var(--border)]">
-              <Wind className="text-blue-400 mb-2" size={20} />
-              <p className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Vent</p>
-              <p className="text-lg font-black text-[var(--text)]">{Math.round(currentWeather.wind.speed * 3.6)} <span className="text-xs">km/h</span></p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full md:w-auto">
+            <div className="p-4 bg-[var(--card)]/80 backdrop-blur-md rounded-2xl border border-[var(--border)] shadow-sm flex flex-col items-center justify-center text-center">
+              <Wind className="text-sky-400 mb-2 drop-shadow-sm" size={24} />
+              <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] whitespace-nowrap">Vent</p>
+              <p className="text-base lg:text-lg font-black text-[var(--text)] mt-1">{Math.round(currentWeather.wind.speed * 3.6)} <span className="text-[10px]">km/h</span></p>
             </div>
-            <div className="p-4 bg-[var(--bg)]/50 backdrop-blur-sm rounded-2xl border border-[var(--border)]">
-              <Droplets className="text-blue-400 mb-2" size={20} />
-              <p className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Humidité</p>
-              <p className="text-lg font-black text-[var(--text)]">{currentWeather.main.humidity}%</p>
+            <div className="p-4 bg-[var(--card)]/80 backdrop-blur-md rounded-2xl border border-[var(--border)] shadow-sm flex flex-col items-center justify-center text-center">
+              <Droplets className="text-blue-400 mb-2 drop-shadow-sm" size={24} />
+              <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] whitespace-nowrap">Humidité</p>
+              <p className="text-base lg:text-lg font-black text-[var(--text)] mt-1">{currentWeather.main.humidity}%</p>
+            </div>
+            
+            {airPollution && (
+              <div className={`p-4 ${aqiInfo.bg} backdrop-blur-md rounded-2xl border ${aqiInfo.border} shadow-sm flex flex-col items-center justify-center text-center`}>
+                <Activity className={`${aqiInfo.color} mb-2 drop-shadow-sm`} size={24} />
+                <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] whitespace-nowrap">Pollution</p>
+                <p className={`text-xs lg:text-sm font-black ${aqiInfo.color} mt-1`}>{aqiInfo.text}</p>
+              </div>
+            )}
+            
+            <div className={`p-4 ${pollenStatus.bg} backdrop-blur-md rounded-2xl border ${pollenStatus.border} shadow-sm flex flex-col items-center justify-center text-center`}>
+               <Flower2 className={`${pollenStatus.color} mb-2 drop-shadow-sm`} size={24} />
+               <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] whitespace-nowrap">Pollen</p>
+               <p className={`text-xs lg:text-sm font-black ${pollenStatus.color} mt-1`}>{pollenStatus.level}</p>
             </div>
           </div>
         </div>
@@ -278,37 +335,58 @@ export const WeatherView = () => {
 
       {/* Forecast */}
       <div>
-        <div className="flex items-center gap-2 mb-4">
-          <CalendarDays className="text-[var(--text-muted)]" size={18} />
-          <h2 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">
+        <div className="flex items-center gap-2 mb-4 ml-1">
+          <CalendarDays className="text-[var(--text-muted)]" size={20} />
+          <h2 className="text-sm font-black text-[var(--text)] uppercase tracking-widest drop-shadow-sm">
             Prévisions sur 5 jours
           </h2>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {dailyForecasts.map((day, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="p-4 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex flex-col items-center justify-between text-center gap-3"
-            >
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
-                  {day.date.split(" ")[0]}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {dailyForecasts.map((day, index) => {
+            // Simplify simulated pollen per day based on its humidity
+            const dayPollen = getSimulatedPollen(currentMonth, day.humidity);
+            return (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="p-5 rounded-3xl bg-gradient-to-b from-[var(--card)] to-[var(--bg)] border border-[var(--border)] shadow-md flex flex-col items-center justify-between text-center gap-3 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 relative overflow-hidden"
+              >
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                    {day.date.split(" ")[0]}
+                  </p>
+                  <p className="text-sm font-bold text-[var(--text)] mt-1">{day.date.split(" ")[1]}</p>
+                </div>
+                
+                <div className="scale-125 my-2">
+                  {getWeatherIcon(day.weather.id, 32)}
+                </div>
+
+                <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)] line-clamp-1 mb-1">
+                  {day.weather.description}
                 </p>
-                <p className="text-xs font-bold text-[var(--text)]">{day.date.split(" ")[1]}</p>
-              </div>
-              
-              {getWeatherIcon(day.weather.id, 28, "text-[var(--text)]")}
-              
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-[var(--text)]">{Math.round(day.temp_max)}°</span>
-                <span className="text-xs font-bold text-[var(--text-muted)]">{Math.round(day.temp_min)}°</span>
-              </div>
-            </motion.div>
-          ))}
+                
+                <div className="flex items-center gap-2 mb-2 w-full justify-center">
+                  <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${aqiInfo.bg} ${aqiInfo.border} ${aqiInfo.color}`} title={`Pollution: ${aqiInfo.text}`}>
+                    <Activity size={10} />
+                    <span className="text-[8px] font-black uppercase">{aqiInfo.text.substring(0,3)}</span>
+                  </div>
+                  <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full border ${dayPollen.bg} ${dayPollen.border} ${dayPollen.color}`} title={`Pollen: ${dayPollen.level}`}>
+                    <Flower2 size={10} />
+                    <span className="text-[8px] font-black uppercase">{dayPollen.level.substring(0,3)}</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 pt-2 border-t border-[var(--border)] w-full justify-center">
+                  <span className="text-base font-black text-[var(--text)]">{Math.round(day.temp_max)}°</span>
+                  <span className="text-sm font-bold text-[var(--text-muted)]">{Math.round(day.temp_min)}°</span>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
       

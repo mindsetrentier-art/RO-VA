@@ -79,6 +79,10 @@ export interface HistoryItem {
     vatPayment: number;
     ursafGlobal: number;
     mutualInsurancePerEmployee: number;
+
+    inventoryHoldTimeDays: number;
+    supplierPaymentDays: number;
+    customerPaymentDays: number;
   };
 }
 
@@ -141,6 +145,10 @@ interface SimulationState {
   vatPayment: number;
   ursafGlobal: number;
   mutualInsurancePerEmployee: number;
+
+  inventoryHoldTimeDays: number;
+  supplierPaymentDays: number;
+  customerPaymentDays: number;
 
   // Theme State
   themeMode: "light" | "dark";
@@ -214,6 +222,10 @@ interface SimulationState {
   setUrsafGlobal: (val: number) => void;
   setMutualInsurancePerEmployee: (val: number) => void;
 
+  setInventoryHoldTimeDays: (val: number) => void;
+  setSupplierPaymentDays: (val: number) => void;
+  setCustomerPaymentDays: (val: number) => void;
+
   setThemeMode: (mode: "light" | "dark") => void;
   setPrimaryColor: (color: string) => void;
   setSecondaryColor: (color: string) => void;
@@ -283,6 +295,10 @@ export const useSimulationStore = create<SimulationState>()(
       vatPayment: 0,
       ursafGlobal: 0,
       mutualInsurancePerEmployee: 50,
+
+      inventoryHoldTimeDays: 30,
+      supplierPaymentDays: 30,
+      customerPaymentDays: 30,
 
       themeMode: "dark",
       primaryColor: "#7C5CFF",
@@ -403,6 +419,10 @@ export const useSimulationStore = create<SimulationState>()(
       setMutualInsurancePerEmployee: (val) =>
         set({ mutualInsurancePerEmployee: val }),
 
+      setInventoryHoldTimeDays: (val) => set({ inventoryHoldTimeDays: val }),
+      setSupplierPaymentDays: (val) => set({ supplierPaymentDays: val }),
+      setCustomerPaymentDays: (val) => set({ customerPaymentDays: val }),
+
       setThemeMode: (mode) => set({ themeMode: mode }),
       setPrimaryColor: (color) => set({ primaryColor: color }),
       setSecondaryColor: (color) => set({ secondaryColor: color }),
@@ -466,6 +486,9 @@ export const useSimulationStore = create<SimulationState>()(
             vatPayment: state.vatPayment,
             ursafGlobal: state.ursafGlobal,
             mutualInsurancePerEmployee: state.mutualInsurancePerEmployee,
+            inventoryHoldTimeDays: state.inventoryHoldTimeDays,
+            supplierPaymentDays: state.supplierPaymentDays,
+            customerPaymentDays: state.customerPaymentDays,
           },
         };
 
