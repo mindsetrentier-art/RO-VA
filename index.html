@@ -4,8 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ROÏVA</title>
-    <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#7C5CFF" />
+    
+    <link rel="icon" type="image/svg+xml" href="/api/icon?size=32" id="favicon" />
+    <link rel="apple-touch-icon" href="/api/icon?format=png&size=180" id="apple-touch-icon" />
+    <link rel="manifest" href="/manifest.json" id="manifest-link" />
+    <meta name="theme-color" content="#7C5CFF" id="meta-theme-color" />
+    
+    <script>
+      (function() {
+        try {
+          const settings = localStorage.getItem('roiva-custom-icon');
+          if (settings) {
+            const parsed = JSON.parse(settings);
+            const color = parsed.color || 'purple';
+            const shape = parsed.shape || 'circleBar';
+            document.getElementById('favicon').href = '/api/icon?color=' + color + '&shape=' + shape + '&size=32';
+            document.getElementById('apple-touch-icon').href = '/api/icon?color=' + color + '&shape=' + shape + '&size=180&format=png';
+            document.getElementById('manifest-link').href = '/manifest.json?color=' + color + '&shape=' + shape;
+            const colorMap = {
+              purple: "#7C5CFF", red: "#EF4444", green: "#10B981", pink: "#EC4899",
+              blue: "#3B82F6", orange: "#F59E0B", slate: "#64748B", indigo: "#6366F1",
+              teal: "#14B8A6", gold: "#FBBF24"
+            };
+            document.getElementById('meta-theme-color').content = colorMap[color] || "#7C5CFF";
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

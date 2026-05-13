@@ -1546,6 +1546,10 @@ const DashboardView = () => {
           </ResponsiveContainer>
         </div>
       </Card>
+
+      <div className="pt-8 border-t border-[var(--border)] mt-8">
+        <WeatherView />
+      </div>
     </motion.div>
   );
 };
@@ -5348,6 +5352,139 @@ const SmartInfoBar = ({ visible }: { visible: boolean }) => {
   );
 };
 
+const IconSettingsSection = () => {
+  const [iconColor, setIconColor] = useState("purple");
+  const [iconShape, setIconShape] = useState("circleBar");
+  
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('roiva-custom-icon');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.color) setIconColor(parsed.color);
+        if (parsed.shape) setIconShape(parsed.shape);
+      }
+    } catch {}
+  }, []);
+
+  const updateIconPreference = (c: string, s: string) => {
+    try {
+      localStorage.setItem('roiva-custom-icon', JSON.stringify({ color: c, shape: s }));
+      setIconColor(c);
+      setIconShape(s);
+      
+      const setAttr = (id: string, attr: string, val: string) => {
+        const el = document.getElementById(id);
+        if (el) el.setAttribute(attr, val);
+      };
+      
+      setAttr('favicon', 'href', `/api/icon?color=${c}&shape=${s}&size=32`);
+      setAttr('apple-touch-icon', 'href', `/api/icon?color=${c}&shape=${s}&size=180&format=png`);
+      setAttr('manifest-link', 'href', `/manifest.json?color=${c}&shape=${s}`);
+      
+      const themeMap: any = {
+        purple: "#7C5CFF", red: "#EF4444", green: "#10B981", pink: "#EC4899",
+        blue: "#3B82F6", orange: "#F59E0B", slate: "#64748B", indigo: "#6366F1",
+        teal: "#14B8A6", gold: "#FBBF24"
+      };
+      setAttr('meta-theme-color', 'content', themeMap[c] || "#7C5CFF");
+    } catch (e) {}
+  };
+
+  const iconColorsList = [
+    { id: "purple", label: "Violet" },
+    { id: "red", label: "Rouge" },
+    { id: "green", label: "Vert" },
+    { id: "pink", label: "Rose" },
+    { id: "blue", label: "Bleu" },
+    { id: "orange", label: "Orange" },
+    { id: "slate", label: "Ardoise" },
+    { id: "indigo", label: "Indigo" },
+    { id: "teal", label: "Cyan" },
+    { id: "gold", label: "Or" },
+  ];
+
+  const iconShapesList = [
+    { id: "circleBar", label: "Roïva" },
+    { id: "triangle", label: "Triangle" },
+    { id: "hexagon", label: "Hexagone" },
+    { id: "star", label: "Étoile" },
+    { id: "diamond", label: "Losange" },
+    { id: "shield", label: "Bouclier" },
+    { id: "drop", label: "Goutte" },
+    { id: "cross", label: "Plus" },
+    { id: "circles", label: "Cercles" },
+    { id: "orb", label: "Orbe" },
+  ];
+
+  return (
+    <Card title="Icônes d'Application" bgIcon={Layers}>
+      <h3 className="text-sm font-bold text-[var(--text)] mb-4 flex items-center gap-2">
+        <Layers size={16} className="text-[var(--primary)]" />
+        Personnalisation de l'icône
+      </h3>
+      <p className="text-xs text-[var(--text-muted)] mt-1 mb-6">
+        Modifiez le logo global de l'application. Cette modification est locale et se reflète sur l'écran d'accueil et les onglets du navigateur.
+      </p>
+
+      <div className="flex flex-col md:flex-row gap-6 mb-6 items-center">
+        <div className="w-24 h-24 rounded-3xl overflow-hidden shadow-xl border border-[var(--border)] bg-[var(--bg)] flex items-center justify-center relative flex-shrink-0">
+          <img 
+            src={`/api/icon?color=${iconColor}&shape=${iconShape}&size=192`} 
+            alt="App Icon Preview" 
+            className="w-full h-full object-cover absolute inset-0"
+          />
+        </div>
+        <div className="flex-1 space-y-4 w-full">
+          <div>
+            <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest block mb-2">
+              Couleur (10)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {iconColorsList.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => updateIconPreference(c.id, iconShape)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    iconColor === c.id 
+                    ? "bg-[var(--primary)] text-white shadow-md" 
+                    : "bg-[var(--bg)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest block mb-2">
+          Forme (10)
+        </label>
+        <div className="flex gap-2 pb-2 overflow-x-auto snap-x hide-scrollbar">
+          {iconShapesList.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => updateIconPreference(iconColor, s.id)}
+              className={`flex-shrink-0 snap-start w-20 h-20 flex flex-col items-center justify-center gap-2 rounded-xl transition-all border ${
+                iconShape === s.id 
+                ? "bg-[var(--primary)]/10 border-[var(--primary)] text-[var(--primary)] shadow-sm" 
+                : "bg-[var(--bg)] border-[var(--border)] text-[var(--text-muted)] hover:bg-white/5"
+              }`}
+            >
+              <img src={`/api/icon?color=${iconColor}&shape=${s.id}&size=48`} className="w-8 h-8 opacity-80" alt={s.label} />
+              <span className="text-[9px] font-bold uppercase tracking-tighter w-full text-center truncate px-1">
+                {s.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+};
+
 // --- Settings View ---
 
 const SettingsView = () => {
@@ -5504,6 +5641,8 @@ const SettingsView = () => {
           </div>
         </div>
       </Card>
+
+      <IconSettingsSection />
 
       <Button
         variant="secondary"

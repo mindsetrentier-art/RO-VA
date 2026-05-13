@@ -45,36 +45,32 @@ export const WeatherView = () => {
   const [forecast, setForecast] = useState<OpenWeatherMapForecast | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const API_KEY = import.meta.env.VITE_OPENWEATHERMAP_API_KEY;
+  const [missingApiKey, setMissingApiKey] = useState(false);
 
   useEffect(() => {
-    if (!API_KEY) {
-      setLoading(false);
-      return;
-    }
-
     const fetchWeather = async (lat: number, lon: number) => {
       try {
         const [weatherRes, forecastRes] = await Promise.all([
-          fetch(
-            `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=fr`
-          ),
-          fetch(
-            `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=fr`
-          ),
+          fetch(`/api/weather?lat=${lat}&lon=${lon}`),
+          fetch(`/api/weather/forecast?lat=${lat}&lon=${lon}`),
         ]);
+
+        if (weatherRes.status === 401 || forecastRes.status === 401) {
+          setMissingApiKey(true);
+          setLoading(false);
+          return;
+        }
 
         if (!weatherRes.ok || !forecastRes.ok) {
           const res = !weatherRes.ok ? weatherRes : forecastRes;
           let errorMessage = "Erreur de l'API OpenWeatherMap. Vérifiez la clé API.";
           try {
             const errorData = await res.clone().json();
-            if (errorData.message) {
-              if (errorData.message.includes("Invalid API key")) {
+            if (errorData.error) {
+              if (errorData.error.includes("Invalid API key")) {
                 errorMessage = "Clé API invalide ou en cours d'activation.\n\n⚠️ Info : Les nouvelles clés OpenWeatherMap (\ncelles gratuites) nécessitent généralement entre 1 et 2 heures pour s'activer.";
               } else {
-                errorMessage = `Erreur OpenWeatherMap: ${errorData.message}`;
+                errorMessage = `Erreur OpenWeatherMap: ${errorData.error}`;
               }
             }
           } catch (e) {
@@ -112,9 +108,9 @@ export const WeatherView = () => {
       console.warn("La géolocalisation n'est pas prise en charge par ce navigateur. Utilisation de Paris par défaut.");
       fetchWeather(48.8566, 2.3522);
     }
-  }, [API_KEY]);
+  }, []);
 
-  if (!API_KEY) {
+  if (missingApiKey) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-lg mx-auto text-center px-4 space-y-6">
         <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center text-rose-500 mb-2 shadow-[0_0_30px_rgba(244,63,94,0.3)]">
