@@ -608,7 +608,7 @@ const PremiumSlider = ({
 
   return (
     <div className="mb-6 last:mb-0">
-      <div className="flex justify-between items-center mb-4 min-h-[32px] relative">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 min-h-[32px] relative gap-2 sm:gap-0">
         <div className="flex items-center gap-2 text-gray-400">
           {Icon && <Icon size={16} />}
           <label className="text-xs font-semibold uppercase tracking-widest flex items-center gap-2">
@@ -624,7 +624,7 @@ const PremiumSlider = ({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="flex flex-col items-end"
+              className="flex flex-col items-start sm:items-end w-full sm:w-auto"
             >
               <input
                 autoFocus
@@ -633,10 +633,10 @@ const PremiumSlider = ({
                 onChange={(e) => { setInputValue(e.target.value); setErrorMsg(null); }}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
-                className={`text-sm font-bold tabular-nums px-2 py-1 rounded-md text-right w-24 outline-none focus:ring-2 ${errorMsg ? 'bg-red-500/20 border border-red-500 text-red-400 focus:ring-red-500/50' : 'bg-[var(--primary)]/20 border border-[var(--primary)] text-[var(--primary)] focus:ring-[var(--primary)]/50'}`}
+                className={`text-sm font-bold tabular-nums px-2 py-1.5 rounded-md text-left sm:text-right w-full sm:w-28 outline-none focus:ring-2 ${errorMsg ? 'bg-red-500/20 border border-red-500 text-red-400 focus:ring-red-500/50' : 'bg-[var(--primary)]/20 border border-[var(--primary)] text-[var(--primary)] focus:ring-[var(--primary)]/50'}`}
               />
               {errorMsg && (
-                <span className="absolute top-full mt-1 right-0 text-[10px] text-red-400 font-bold max-w-[200px] text-right">
+                <span className="static sm:absolute sm:top-full mt-1 sm:right-0 text-[10px] text-red-400 font-bold max-w-full sm:max-w-[200px] text-left sm:text-right">
                   {errorMsg}
                 </span>
               )}
@@ -649,16 +649,16 @@ const PremiumSlider = ({
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
               onClick={() => setIsEditing(true)}
-              className="group/value cursor-pointer flex items-center gap-2"
+              className="group/value cursor-pointer flex items-center justify-start sm:justify-end gap-2 w-full sm:w-auto"
             >
               <span
-                className="text-sm font-bold text-[var(--primary)] tabular-nums bg-[var(--primary)]/10 px-3 py-1 rounded-md border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                className="text-sm font-bold text-[var(--primary)] tabular-nums bg-[var(--primary)]/10 px-3 py-1.5 rounded-md border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 w-full justify-between sm:w-auto sm:justify-end min-h-[36px]"
                 title="Cliquer pour saisir une valeur"
               >
                 {format(value)}
                 <Pencil
-                  size={10}
-                  className="opacity-0 group-hover/value:opacity-100 transition-opacity"
+                  size={12}
+                  className="opacity-50 sm:opacity-0 group-hover/value:opacity-100 transition-opacity"
                 />
               </span>
             </motion.div>
@@ -6036,6 +6036,7 @@ const BoutiqueView = () => {
   >("Mois");
   const [showEmployeesList, setShowEmployeesList] = useState(false);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+  const [localToast, setLocalToast] = useState<string | null>(null);
 
   const exportEmployeePDF = async () => {
     if (!employeePdfRef.current || isGeneratingEmployeePdf) return;
@@ -6257,7 +6258,7 @@ const BoutiqueView = () => {
                       <Trash2 size={16} />
                     </button>
                     <div className="flex items-center gap-3 mb-4 pr-10">
-                      <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg min-w-[32px] bg-[var(--primary)]/10 flex items-center justify-center">
                         <User size={16} className="text-[var(--primary)]" />
                       </div>
                       <input
@@ -6267,10 +6268,10 @@ const BoutiqueView = () => {
                         onChange={(e) =>
                           store.updateEmployee(emp.id, "name", e.target.value)
                         }
-                        className="bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none w-full"
+                        className="bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none w-full whitespace-nowrap overflow-hidden text-ellipsis"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
                           Salaire Net Mensuel
@@ -6447,10 +6448,13 @@ const BoutiqueView = () => {
                       </div>
                     </div>
                     <button
-                      onClick={() => setToast({ title: "Enregistré", message: "Les données de l'employé ont bien été enregistrées.", type: "success" })}
+                      onClick={() => {
+                        setLocalToast(emp.id);
+                        setTimeout(() => setLocalToast(null), 2000);
+                      }}
                       className="w-full mt-4 py-2.5 flex items-center justify-center gap-2 bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm shadow-[var(--primary)]/20 active:scale-[0.98]"
                     >
-                      <Save size={14} /> Enregistrer
+                      <Save size={14} /> {localToast === emp.id ? "Sauvegardé ✓" : "Enregistrer"}
                     </button>
                   </motion.div>
                 ))}
@@ -6515,12 +6519,12 @@ const BoutiqueView = () => {
                 >
                   <button
                     onClick={() => store.removeBoutiqueProduct(prod.id)}
-                    className="absolute top-4 right-4 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-rose-500/10 rounded-lg"
+                    className="absolute top-4 right-4 text-rose-500 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg lg:p-1 lg:bg-transparent"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={16} />
                   </button>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
+                  <div className="flex items-center gap-3 mb-4 pr-10">
+                    <div className="w-8 h-8 rounded-lg min-w-[32px] bg-[var(--primary)]/10 flex items-center justify-center">
                       <ShoppingCart
                         size={16}
                         className="text-[var(--primary)]"
@@ -6537,10 +6541,10 @@ const BoutiqueView = () => {
                           e.target.value,
                         )
                       }
-                      className="bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none w-full"
+                      className="bg-transparent border-none font-bold text-sm text-[var(--text)] outline-none w-full whitespace-nowrap overflow-hidden text-ellipsis"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest block mb-1">
                         Coût Achat (Unit.)
@@ -7661,8 +7665,8 @@ export default function App() {
 
       {/* BottomNav */}
       {!isFullscreen && (
-        <div className="fixed bottom-6 w-full px-4 z-50 pointer-events-none flex justify-center">
-          <nav className="bg-[var(--bg)]/70 backdrop-blur-3xl border border-[var(--border)] shadow-[0_20px_40px_rgba(0,0,0,0.4)] flex items-center justify-start gap-1 p-2 overflow-x-auto no-scrollbar rounded-[2rem] transition-all duration-500 w-full max-w-lg mx-auto pointer-events-auto snap-x">
+        <div className="fixed bottom-0 w-full z-50 pointer-events-none flex justify-center">
+          <nav className="bg-[#0B0F1A]/80 backdrop-blur-3xl border-t border-x border-[#7C5CFF]/20 shadow-[0_-10px_40px_rgba(124,92,255,0.15)] flex items-center justify-start gap-1 p-2 pb-2 sm:pb-3 overflow-x-auto no-scrollbar rounded-t-[2rem] rounded-b-none transition-all duration-500 w-[calc(100%-2rem)] max-w-lg pointer-events-auto snap-x">
           <NavItem
             icon={Home}
             label="Dash"
