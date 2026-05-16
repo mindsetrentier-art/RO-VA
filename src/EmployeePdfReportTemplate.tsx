@@ -1,11 +1,12 @@
 import React, { forwardRef } from "react";
 import { useSimulationStore } from "./store";
-import { estimateSalaryCostFrance } from "./lib/finance";
+import { estimateSalaryCostFrance, runSimulation } from "./lib/finance";
 
-const formatCurrency = (v: number) => `€${Math.round(v).toLocaleString()}`;
+const formatCurrency = (v: number) => `€${Number(v.toFixed(2)).toLocaleString()}`;
 
 export const EmployeePdfReportTemplate = forwardRef<HTMLDivElement, {}>((_, ref) => {
   const store = useSimulationStore() as any;
+  const results = runSimulation(store, store.activeScenario);
 
   return (
     <div
@@ -56,12 +57,20 @@ export const EmployeePdfReportTemplate = forwardRef<HTMLDivElement, {}>((_, ref)
                     {emp.chargeType === "€" ? formatCurrency(emp.charges) : `${emp.charges}%`}
                   </td>
                   <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: "bold", color: "#7C5CFF" }}>
-                    {formatCurrency(est.total_cost)}
+                    {formatCurrency(est.total_cost + (store.mutualInsurancePerEmployee || 0))}
                   </td>
                 </tr>
               );
             })}
           </tbody>
+          <tfoot>
+            <tr style={{ backgroundColor: "#f8f9fa", borderTop: "2px solid #ddd" }}>
+              <td colSpan={3} style={{ padding: "16px 10px", fontWeight: 900, textAlign: "right", color: "#333", fontSize: "14px", textTransform: "uppercase" }}>Masse Salariale Totale Mensuelle</td>
+              <td style={{ padding: "16px 10px", textAlign: "right", fontWeight: 900, color: "#7C5CFF", fontSize: "16px" }}>
+                {formatCurrency(results.employeeCosts || 0)}
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 

@@ -326,6 +326,54 @@ const KPICard = ({
   );
 };
 
+const RoivaRadialCard = ({ score }: { score: number }) => {
+  const animatedScore = useCountUp(score);
+  const colorClass = score < 30 ? "text-red-500" : score <= 70 ? "text-amber-500" : "text-emerald-500";
+  const strokeColor = score < 30 ? "#EF4444" : score <= 70 ? "#F59E0B" : "#10B981";
+
+  return (
+    <Card className="flex flex-col items-center justify-center p-5 overflow-hidden relative group">
+      <div className={`absolute top-0 right-0 w-24 h-24 blur-[20px] -mr-8 -mt-8 rounded-full transition-colors ${score < 30 ? "bg-red-500/10 group-hover:bg-red-500/20" : score <= 70 ? "bg-amber-500/10 group-hover:bg-amber-500/20" : "bg-emerald-500/10 group-hover:bg-emerald-500/20"}`} />
+      
+      <div className="relative w-[5.5rem] h-[5.5rem] flex items-center justify-center mb-3">
+        <svg className="absolute inset-0 w-full h-full -rotate-90 drop-shadow-sm">
+          <circle
+            cx="44"
+            cy="44"
+            r="38"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="6"
+            className="text-[var(--border)]"
+          />
+          <motion.circle
+            cx="44"
+            cy="44"
+            r="38"
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth="6"
+            strokeDasharray="238.7"
+            initial={{ strokeDashoffset: 238.7 }}
+            animate={{ strokeDashoffset: 238.7 - (238.7 * score) / 100 }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
+            strokeLinecap="round"
+          />
+        </svg>
+        <div className="flex flex-col items-center justify-center z-10 relative">
+          <span className={`text-2xl font-black ${colorClass} leading-none tracking-tighter`}>
+            {animatedScore}
+          </span>
+        </div>
+      </div>
+      
+      <p className="text-[11px] font-black text-[var(--text)] uppercase tracking-widest text-center mt-auto">
+        Score Roïva
+      </p>
+    </Card>
+  );
+};
+
 const DashboardInsightCard: React.FC<{ insight: any }> = ({ insight }) => (
   <Card className="p-5 relative overflow-hidden group hover:translate-y-[-4px] transition-all border-white/5 h-full">
     <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors"></div>
@@ -563,27 +611,24 @@ const PremiumSlider = ({
   }, [value, isEditing]);
 
   const handleBlur = () => {
-    const num = parseFloat(inputValue);
+    let num = parseFloat(inputValue);
     
-    if (isNaN(num)) {
-      setErrorMsg("Veuillez entrer un nombre valide");
-      return;
-    }
-    if (num < 0) {
-      setErrorMsg("La valeur doit être positive");
+    if (isNaN(num) || num < 0) {
+      // Revert completely on invalid or negative
+      setIsEditing(false);
+      setInputValue(value.toString());
+      setErrorMsg(null);
       return;
     }
 
     const volumeMatch = label.toLowerCase().includes("volume") || label.toLowerCase().includes("projet");
     if (volumeMatch && num > 1000000) {
-      setErrorMsg("Le volume ne doit pas dépasser 1 million");
-      return;
+      num = 1000000; // clamp
     }
 
     const absoluteMax = maxLimit ?? 1000000000;
     if (num > absoluteMax) {
-      setErrorMsg(`Valeur irréaliste (max: ${format ? format(absoluteMax) : absoluteMax})`);
-      return;
+      num = absoluteMax; // clamp
     }
 
     setErrorMsg(null);
@@ -593,7 +638,7 @@ const PremiumSlider = ({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
-      handleBlur();
+      e.currentTarget.blur();
     }
     if (e.key === "Escape") {
       setIsEditing(false);
@@ -616,54 +661,45 @@ const PremiumSlider = ({
           </label>
         </div>
 
-        <AnimatePresence mode="wait">
-          {isEditing ? (
-            <motion.div
-              key="input"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
-              className="flex flex-col items-start sm:items-end w-full sm:w-auto"
-            >
-              <input
-                autoFocus
-                type="number"
-                value={inputValue}
-                onChange={(e) => { setInputValue(e.target.value); setErrorMsg(null); }}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                className={`text-sm font-bold tabular-nums px-2 py-1.5 rounded-md text-left sm:text-right w-full sm:w-28 outline-none focus:ring-2 ${errorMsg ? 'bg-red-500/20 border border-red-500 text-red-400 focus:ring-red-500/50' : 'bg-[var(--primary)]/20 border border-[var(--primary)] text-[var(--primary)] focus:ring-[var(--primary)]/50'}`}
+        <div className="flex flex-col items-start sm:items-end w-full sm:w-auto relative group">
+          <div className="relative w-full sm:w-auto flex items-center">
+            <input
+              type={isEditing ? "number" : "text"}
+              inputMode={isEditing ? "decimal" : "text"}
+              value={isEditing ? inputValue : format(value)}
+              onFocus={() => {
+                setIsEditing(true);
+                setInputValue(value.toString());
+              }}
+              onBlur={handleBlur}
+              onChange={(e) => {
+                if (isEditing) {
+                  setInputValue(e.target.value);
+                  setErrorMsg(null);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              className={`text-sm font-bold tabular-nums px-3 py-1.5 rounded-md text-left sm:text-right w-full sm:w-32 outline-none focus:ring-2 transition-all min-h-[36px] ${
+                errorMsg
+                  ? "bg-red-500/20 border border-red-500 text-red-400 focus:ring-red-500/50"
+                  : isEditing
+                    ? "bg-[var(--primary)]/20 border border-[var(--primary)] text-[var(--primary)] focus:ring-[var(--primary)]/50"
+                    : "bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)] hover:bg-[var(--primary)]/20 cursor-text pr-8"
+              }`}
+            />
+            {!isEditing && (
+              <Pencil
+                size={12}
+                className="absolute right-3 opacity-40 group-hover:opacity-100 transition-opacity pointer-events-none text-[var(--primary)]"
               />
-              {errorMsg && (
-                <span className="static sm:absolute sm:top-full mt-1 sm:right-0 text-[10px] text-red-400 font-bold max-w-full sm:max-w-[200px] text-left sm:text-right">
-                  {errorMsg}
-                </span>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="value"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setIsEditing(true)}
-              className="group/value cursor-pointer flex items-center justify-start sm:justify-end gap-2 w-full sm:w-auto"
-            >
-              <span
-                className="text-sm font-bold text-[var(--primary)] tabular-nums bg-[var(--primary)]/10 px-3 py-1.5 rounded-md border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 w-full justify-between sm:w-auto sm:justify-end min-h-[36px]"
-                title="Cliquer pour saisir une valeur"
-              >
-                {format(value)}
-                <Pencil
-                  size={12}
-                  className="opacity-50 sm:opacity-0 group-hover/value:opacity-100 transition-opacity"
-                />
-              </span>
-            </motion.div>
+            )}
+          </div>
+          {errorMsg && (
+            <span className="static sm:absolute sm:top-full mt-1 sm:right-0 text-[10px] text-red-400 font-bold max-w-full sm:max-w-[200px] text-left sm:text-right">
+              {errorMsg}
+            </span>
           )}
-        </AnimatePresence>
+        </div>
       </div>
       <div className="relative pt-1 pb-2 group">
         <input
@@ -1345,12 +1381,45 @@ const DashboardView = () => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="space-y-6 pb-28 max-w-lg mx-auto w-full pt-20 px-6"
+      className="space-y-6 pb-28 max-w-5xl mx-auto w-full pt-20 px-6"
     >
       <QuickAddModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
+
+      <AnimatePresence>
+        {isScanning && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <div className="bg-[var(--card)] border border-[var(--primary)]/30 p-8 rounded-3xl shadow-[0_20px_40px_rgba(0,0,0,0.5),0_0_40px_rgba(124,92,255,0.3)] flex flex-col items-center justify-center gap-6 w-full max-w-sm overflow-hidden relative">
+              <div className="absolute inset-0 bg-gradient-to-tr from-[var(--primary)]/0 via-[var(--primary)]/5 to-[var(--primary)]/0 animate-[shimmer_2s_infinite]" />
+              
+              <div className="relative z-10 w-20 h-20 bg-[var(--primary)]/20 rounded-full flex items-center justify-center animate-pulse">
+                <Camera size={40} className="text-[var(--primary)]" />
+              </div>
+              
+              <div className="relative z-10 text-center space-y-2">
+                <h3 className="text-lg font-black tracking-tight text-[var(--text)]">Analyse en cours...</h3>
+                <p className="text-xs text-[var(--text-muted)] font-medium max-w-[250px]">L'IA extrait les données financières de votre image.</p>
+              </div>
+              
+              <div className="relative z-10 w-full h-2 bg-[var(--border)] rounded-full overflow-hidden mt-2">
+                <motion.div 
+                  className="absolute top-0 left-0 h-full bg-[var(--primary)] rounded-full border border-white/20 shadow-[0_0_10px_rgba(124,92,255,0.5)]"
+                  initial={{ width: "0%" }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 4, ease: "linear", repeat: Infinity }}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <header className="relative overflow-hidden rounded-[2rem] bg-[var(--card)] border border-[var(--border)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.2)]">
         <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--primary)]/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 mix-blend-screen pointer-events-none" />
@@ -1400,21 +1469,21 @@ const DashboardView = () => {
                   cy="48"
                   r="42"
                   fill="none"
-                  stroke="currentColor"
+                  stroke={results.roivaScore < 30 ? "#EF4444" : results.roivaScore <= 70 ? "#F59E0B" : "#10B981"}
                   strokeWidth="4"
                   strokeDasharray="263.9"
                   initial={{ strokeDashoffset: 263.9 }}
                   animate={{ strokeDashoffset: 263.9 - (263.9 * score) / 100 }}
                   transition={{ duration: 1.5, ease: "easeOut" }}
                   strokeLinecap="round"
-                  className="text-[var(--primary)]"
+                  className="transition-colors duration-500"
                 />
               </svg>
               <div className="flex flex-col items-center justify-center z-10 relative">
-                <span className="text-3xl font-black text-[var(--text)] leading-none mt-1 tracking-tighter">
+                <span className={`text-3xl font-black ${results.roivaScore < 30 ? "text-red-500" : results.roivaScore <= 70 ? "text-amber-500" : "text-emerald-500"} leading-none mt-1 tracking-tighter`}>
                   {score}
                 </span>
-                <span className="text-[9px] font-black text-[var(--primary)] uppercase tracking-widest mt-1">
+                <span className={`text-[9px] font-black ${results.roivaScore < 30 ? "text-red-500" : results.roivaScore <= 70 ? "text-amber-500" : "text-emerald-500"} uppercase tracking-widest mt-1`}>
                   Roïva
                 </span>
               </div>
@@ -1535,14 +1604,7 @@ const DashboardView = () => {
           isCurrency={true}
           colorClass="text-[#10B981]"
         />
-        <KPICard
-          title="ROI"
-          value={results.roi}
-          trend="Objectif dépassé"
-          icon={Target}
-          suffix="%"
-          colorClass="text-[var(--primary)]"
-        />
+        <RoivaRadialCard score={results.roivaScore} />
         <KPICard
           title="Marge"
           value={results.margin}
@@ -1588,14 +1650,7 @@ const DashboardView = () => {
             isCurrency={true}
             colorClass="text-[#10B981]"
           />
-          <KPICard
-            title="ROI (%)"
-            value={results.roi}
-            trend="Performance globale"
-            icon={Target}
-            suffix="%"
-            colorClass="text-[var(--primary)]"
-          />
+          <RoivaRadialCard score={results.roivaScore} />
           <KPICard
             title="Marge Nette (%)"
             value={results.margin}
@@ -6035,6 +6090,7 @@ const BoutiqueView = () => {
     "Jour" | "Semaine" | "Mois"
   >("Mois");
   const [showEmployeesList, setShowEmployeesList] = useState(false);
+  const [showEmployeeSummary, setShowEmployeeSummary] = useState(false);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   const [localToast, setLocalToast] = useState<string | null>(null);
 
@@ -6468,6 +6524,105 @@ const BoutiqueView = () => {
                 )}
               </div>
             )}
+            
+            {/* Section Bilan Salarial */}
+            {store.employees.length > 0 && (
+              <div className="mt-4 border-t border-[var(--border)] pt-4">
+                <button
+                  onClick={() => setShowEmployeeSummary(!showEmployeeSummary)}
+                  className="w-full flex items-center justify-between p-3 bg-[var(--bg)] border border-[var(--border)] hover:bg-[var(--border)]/50 rounded-xl transition-all"
+                >
+                  <div className="flex items-center gap-2">
+                    <PieChart className="text-[var(--primary)]" size={16} />
+                    <span className="text-[10px] font-black text-[var(--text)] uppercase tracking-widest">
+                      Bilan de la Masse Salariale
+                    </span>
+                  </div>
+                  <ChevronRight 
+                    size={16} 
+                    className={`text-[var(--text-muted)] transition-transform duration-300 ${showEmployeeSummary ? "rotate-90" : ""}`}
+                  />
+                </button>
+
+                <AnimatePresence>
+                  {showEmployeeSummary && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        {(() => {
+                          const totalNet = store.employees.reduce((acc: any, emp: any) => acc + (emp.salary || 0), 0);
+                          const totalCostFromEst = store.employees.reduce((acc: any, emp: any) => acc + estimateSalaryCostFrance(emp.salary || 0, emp.charges, emp.chargeType).total_cost, 0);
+                          const totalMutuelle = store.employees.length * (store.mutualInsurancePerEmployee || 0);
+                          const totalGlobal = totalCostFromEst + totalMutuelle;
+                          const totalCharges = totalCostFromEst - totalNet;
+                          
+                          return (
+                            <>
+                              <div className="p-4 bg-[var(--card)] border border-[var(--border)] rounded-2xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 blur-[20px] -mr-8 -mt-8 rounded-full" />
+                                <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-1 relative z-10">
+                                  Salaire Net Mensuel
+                                </p>
+                                <p className="text-xl font-black text-[var(--text)] relative z-10 break-all">
+                                  €{Math.round(totalNet).toLocaleString()}
+                                </p>
+                                <p className="text-[10px] font-bold text-blue-400 mt-2 relative z-10 bg-blue-500/10 w-max px-2 py-0.5 rounded">
+                                  {(totalGlobal > 0 ? (totalNet / totalGlobal) * 100 : 0).toFixed(1)}% du total
+                                </p>
+                              </div>
+
+                              <div className="p-4 bg-[var(--card)] border border-[var(--border)] rounded-2xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/10 blur-[20px] -mr-8 -mt-8 rounded-full" />
+                                <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-1 title-content relative z-10" title="Inclut cotisations patronales, salariales et retraite">
+                                  Charges & Retraite
+                                </p>
+                                <p className="text-xl font-black text-[var(--text)] relative z-10 break-all">
+                                  €{Math.round(totalCharges).toLocaleString()}
+                                </p>
+                                <p className="text-[10px] font-bold text-rose-400 mt-2 relative z-10 bg-rose-500/10 w-max px-2 py-0.5 rounded">
+                                  {(totalGlobal > 0 ? (totalCharges / totalGlobal) * 100 : 0).toFixed(1)}% du total
+                                </p>
+                              </div>
+
+                              <div className="p-4 bg-[var(--card)] border border-[var(--border)] rounded-2xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 blur-[20px] -mr-8 -mt-8 rounded-full" />
+                                <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-1 relative z-10">
+                                  Mutuelle & Frais
+                                </p>
+                                <p className="text-xl font-black text-[var(--text)] relative z-10 break-all">
+                                  €{Math.round(totalMutuelle).toLocaleString()}
+                                </p>
+                                <p className="text-[10px] font-bold text-amber-400 mt-2 relative z-10 bg-amber-500/10 w-max px-2 py-0.5 rounded">
+                                  {(totalGlobal > 0 ? (totalMutuelle / totalGlobal) * 100 : 0).toFixed(1)}% du total
+                                </p>
+                              </div>
+
+                              <div className="p-4 bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-2xl relative overflow-hidden shadow-[0_0_15px_rgba(124,92,255,0.1)]">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-[var(--primary)]/20 blur-[30px] -mr-12 -mt-12 rounded-full" />
+                                <p className="text-[9px] font-black text-[var(--primary)] uppercase tracking-widest mb-1 relative z-10">
+                                  Coût Global
+                                </p>
+                                <p className="text-2xl font-black text-[var(--text)] relative z-10 break-all">
+                                  €{Math.round(totalGlobal).toLocaleString()}
+                                </p>
+                                <p className="text-[10px] font-bold text-[var(--primary)] mt-2 relative z-10">
+                                  100% de la masse
+                                </p>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+            
           </section>
 
           {/* Section Catalogue de Produits */}
@@ -7405,8 +7560,19 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isNavOpen, setIsNavOpen] = useState(true);
 
   useColorCycle();
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (isNavOpen) {
+      timeout = setTimeout(() => {
+        setIsNavOpen(false);
+      }, 60000); // 1 minute
+    }
+    return () => clearTimeout(timeout);
+  }, [isNavOpen, activeTab]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -7665,75 +7831,96 @@ export default function App() {
 
       {/* BottomNav */}
       {!isFullscreen && (
-        <div className="fixed bottom-0 w-full z-50 pointer-events-none flex justify-center">
-          <nav className="bg-[#0B0F1A]/80 backdrop-blur-3xl border-t border-x border-[#7C5CFF]/20 shadow-[0_-10px_40px_rgba(124,92,255,0.15)] flex items-center justify-start gap-1 p-2 pb-2 sm:pb-3 overflow-x-auto no-scrollbar rounded-t-[2rem] rounded-b-none transition-all duration-500 w-[calc(100%-2rem)] max-w-lg pointer-events-auto snap-x">
-          <NavItem
-            icon={Home}
-            label="Dash"
-            active={activeTab === "dashboard"}
-            onClick={() => setActiveTab("dashboard")}
-          />
-          <NavItem
-            icon={Activity}
-            label="Simu"
-            active={activeTab === "simulation"}
-            onClick={() => setActiveTab("simulation")}
-          />
-          <NavItem
-            icon={Target}
-            label="Seuil"
-            active={activeTab === "breakeven"}
-            onClick={() => setActiveTab("breakeven")}
-          />
-          <NavItem
-            icon={TrendingUp}
-            label="Evol."
-            active={activeTab === "evolution"}
-            onClick={() => setActiveTab("evolution")}
-          />
-          <NavItem
-            icon={Boxes}
-            label="Stocks"
-            active={activeTab === "stocks"}
-            onClick={() => setActiveTab("stocks")}
-          />
-          <NavItem
-            icon={Cloud}
-            label="Météo"
-            active={activeTab === "weather"}
-            onClick={() => setActiveTab("weather")}
-          />
-          <NavItem
-            icon={Sparkles}
-            label="IA"
-            active={activeTab === "analyses"}
-            onClick={() => setActiveTab("analyses")}
-            highlight={true}
-          />
-          <NavItem
-            icon={Layers}
-            label="Comp"
-            active={activeTab === "comparison"}
-            onClick={() => setActiveTab("comparison")}
-          />
-          <NavItem
-            icon={History}
-            label="Hist."
-            active={activeTab === "history"}
-            onClick={() => setActiveTab("history")}
-          />
-          <NavItem
-            icon={Settings}
-            label="Param"
-            active={activeTab === "settings"}
-            onClick={() => setActiveTab("settings")}
-          />
-          <NavItem
-            icon={LifeBuoy}
-            label="Support"
-            active={activeTab === "support"}
-            onClick={() => setActiveTab("support")}
-          />
+        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none flex flex-col items-center pb-0 sm:pb-4">
+          
+          <button
+            onClick={() => setIsNavOpen(!isNavOpen)}
+            className="pointer-events-auto w-16 h-2 bg-white/30 hover:bg-white/60 mb-2 rounded-full cursor-pointer transition-all duration-300 shadow-[0_0_10px_rgba(255,255,255,0.1)] flex items-center justify-center group/btn"
+            style={{ 
+              opacity: isNavOpen ? 0.7 : 1,
+              transform: isNavOpen ? 'translateY(0)' : 'translateY(12px)'
+            }}
+            title={isNavOpen ? "Masquer le menu" : "Afficher le menu"}
+          >
+            {!isNavOpen && <div className="w-8 h-0.5 bg-white/50 rounded-full group-hover/btn:bg-white transition-colors" />}
+          </button>
+
+          <nav 
+            className={`bg-[#0B0F1A]/90 backdrop-blur-2xl border border-white/20 sm:border-[#7C5CFF]/40 shadow-[0_-20px_40px_rgba(0,0,0,0.6),auto,0_0_30px_rgba(124,92,255,0.25)] flex items-center justify-start sm:justify-center gap-1.5 p-2 sm:p-2.5 overflow-x-auto no-scrollbar rounded-t-[1.5rem] sm:rounded-full transition-transform duration-500 w-[calc(100%-2rem)] sm:w-max max-w-5xl pointer-events-auto snap-x relative group ${
+              isNavOpen ? "translate-y-0" : "translate-y-[150%]"
+            }`}
+          >
+            
+            {/* Ambient inner glow */}
+            <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[var(--primary)]/50 to-transparent opacity-50" />
+            
+            <NavItem
+              icon={Home}
+              label="Dash"
+              active={activeTab === "dashboard"}
+              onClick={() => setActiveTab("dashboard")}
+            />
+            <NavItem
+              icon={Activity}
+              label="Simu"
+              active={activeTab === "simulation"}
+              onClick={() => setActiveTab("simulation")}
+            />
+            <NavItem
+              icon={Target}
+              label="Seuil"
+              active={activeTab === "breakeven"}
+              onClick={() => setActiveTab("breakeven")}
+            />
+            <NavItem
+              icon={TrendingUp}
+              label="Evol."
+              active={activeTab === "evolution"}
+              onClick={() => setActiveTab("evolution")}
+            />
+            <NavItem
+              icon={Boxes}
+              label="Stocks"
+              active={activeTab === "stocks"}
+              onClick={() => setActiveTab("stocks")}
+            />
+            <NavItem
+              icon={Cloud}
+              label="Météo"
+              active={activeTab === "weather"}
+              onClick={() => setActiveTab("weather")}
+            />
+            <NavItem
+              icon={Sparkles}
+              label="IA"
+              active={activeTab === "analyses"}
+              onClick={() => setActiveTab("analyses")}
+              highlight={true}
+            />
+            <NavItem
+              icon={Layers}
+              label="Comp"
+              active={activeTab === "comparison"}
+              onClick={() => setActiveTab("comparison")}
+            />
+            <NavItem
+              icon={History}
+              label="Hist."
+              active={activeTab === "history"}
+              onClick={() => setActiveTab("history")}
+            />
+            <NavItem
+              icon={Settings}
+              label="Param"
+              active={activeTab === "settings"}
+              onClick={() => setActiveTab("settings")}
+            />
+            <NavItem
+              icon={LifeBuoy}
+              label="Support"
+              active={activeTab === "support"}
+              onClick={() => setActiveTab("support")}
+            />
           </nav>
         </div>
       )}
