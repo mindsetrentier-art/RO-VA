@@ -393,3 +393,119 @@ export const WeatherView = () => {
     </div>
   );
 };
+
+export const WeatherWidget = () => {
+  const [currentWeather, setCurrentWeather] = useState<OpenWeatherMapCurrent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [missingApiKey, setMissingApiKey] = useState(false);
+
+  useEffect(() => {
+    const fetchWeather = async (lat: number, lon: number) => {
+      try {
+        const weatherRes = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
+        
+        if (weatherRes.status === 401) {
+          setMissingApiKey(true);
+          setLoading(false);
+          return;
+        }
+
+        if (!weatherRes.ok) {
+          throw new Error("Erreur météo");
+        }
+
+        const weatherData = await weatherRes.json();
+        setCurrentWeather(weatherData);
+        setLoading(false);
+      } catch (err: any) {
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          fetchWeather(position.coords.latitude, position.coords.longitude);
+        },
+        (error) => {
+          fetchWeather(48.8566, 2.3522);
+        },
+        { timeout: 10000, enableHighAccuracy: false, maximumAge: 300000 }
+      );
+    } else {
+      fetchWeather(48.8566, 2.3522);
+    }
+  }, []);
+
+  if (missingApiKey || error || !currentWeather) {
+    // Return a minimal error or placeholder state
+    return (
+      <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-[var(--card)] to-[var(--bg)] border border-[var(--border)] rounded-2xl shadow-sm text-xs opacity-70">
+         <CloudRain size={20} className="text-[var(--text-muted)]" />
+         <div>
+           <p className="font-bold text-[var(--text)]">Météo Indisponible</p>
+           <p className="text-[10px] text-[var(--text-muted)]">Données locales</p>
+         </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-3 p-3 bg-[var(--card)] border border-[var(--border)] rounded-2xl animate-pulse">
+        <div className="w-8 h-8 rounded-full bg-[var(--border)]" />
+        <div className="space-y-1">
+           <div className="w-16 h-3 bg-[var(--border)] rounded" />
+           <div className="w-10 h-2 bg-[var(--border)] rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="relative overflow-hidden p-4 bg-gradient-to-br from-[var(--card)] to-[var(--bg)] border border-[var(--border)] rounded-3xl shadow-[0_10px_30px_rgba(0,0,0,0.1)] flex items-center justify-between"
+    >
+      <div className="absolute -right-4 -top-4 opacity-10 pointer-events-none blur-sm">
+        {getWeatherIcon(currentWeather.weather[0].id, 100)}
+      </div>
+
+      <div className="flex items-center gap-4 relative z-10 w-full">
+        <div className="p-2.5 bg-[var(--bg)]/50 backdrop-blur-md rounded-2xl shadow-inner border border-white/5">
+           {getWeatherIcon(currentWeather.weather[0].id, 28)}
+        </div>
+        
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--primary)] bg-[var(--primary)]/10 px-1.5 py-0.5 rounded-md">
+              {currentWeather.name}
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black tabular-nums tracking-tighter text-[var(--text)] drop-shadow-sm">
+              {Math.round(currentWeather.main.temp)}°
+            </span>
+            <span className="text-xs font-bold text-[var(--text-muted)] capitalize">
+              {currentWeather.weather[0].description}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1 items-end pl-2 border-l border-[var(--border)]">
+          <div className="flex items-center gap-1 text-[10px] font-bold text-[var(--text-muted)]">
+            <Wind size={10} className="text-sky-400" />
+            {Math.round(currentWeather.wind.speed * 3.6)} <span className="opacity-50">km/h</span>
+          </div>
+          <div className="flex items-center gap-1 text-[10px] font-bold text-[var(--text-muted)]">
+             <Droplets size={10} className="text-blue-400" />
+             {currentWeather.main.humidity}%
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};

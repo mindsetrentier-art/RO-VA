@@ -22,6 +22,7 @@ export interface SalaryEstimation {
 export function estimateSalaryCostFrance(
   netSalary: number,
   customChargeRatePercentage?: number,
+  chargeType?: "%" | "€"
 ): SalaryEstimation {
   let netToBrutRatio: number;
   let employerChargeRate: number;
@@ -37,17 +38,26 @@ export function estimateSalaryCostFrance(
     employerChargeRate = 0.44;
   }
 
+  let employerCharges = 0;
+  const brutSalary = netSalary * netToBrutRatio;
+
   if (
     customChargeRatePercentage !== undefined &&
     customChargeRatePercentage !== null
   ) {
-    employerChargeRate = customChargeRatePercentage / 100;
+    if (chargeType === "€") {
+      employerCharges = customChargeRatePercentage;
+      employerChargeRate = brutSalary > 0 ? employerCharges / brutSalary : 0;
+    } else {
+      employerChargeRate = customChargeRatePercentage / 100;
+      employerCharges = brutSalary * employerChargeRate;
+    }
+  } else {
+    employerCharges = brutSalary * employerChargeRate;
   }
 
-  const brutSalary = netSalary * netToBrutRatio;
-  const employerCharges = brutSalary * employerChargeRate;
   const totalCost = brutSalary + employerCharges;
-  const chargesPercentage = (employerCharges / totalCost) * 100;
+  const chargesPercentage = totalCost > 0 ? (employerCharges / totalCost) * 100 : 0;
 
   // Cotisation retraite patronale is generally around 16.5% of brut salary
   const retirement_contribution = brutSalary * 0.165;
@@ -71,7 +81,7 @@ export const runSimulation = (data: any, scenario: ScenarioType) => {
       (data.employees || []).length * (data.mutualInsurancePerEmployee || 0);
     const employeeCosts =
       (data.employees || []).reduce((acc: number, emp: any) => {
-        const est = estimateSalaryCostFrance(emp.salary || 0, emp.charges);
+        const est = estimateSalaryCostFrance(emp.salary || 0, emp.charges, emp.chargeType);
         return acc + est.total_cost;
       }, 0) + mutualTotal;
 

@@ -1,6 +1,6 @@
 {
   "name": "ROÏVA",
   "description": "ROÏVA est une plateforme d’intelligence financière conçue pour transformer des données complexes en décisions claires.\n\nElle permet de :\n\nsimuler des investissements\nanalyser la rentabilité (ROI, TRI, cash-flow)\ncomparer des scénarios\nobtenir des recommandations intelligentes en temps réel\n\nROÏVA ne se contente pas de calculer.\nElle explique, anticipe et guide chaque décision. transforme vos chiffres en décisions.\nSimulez, comprenez et optimisez vos investissements en quelques secondes.   ",
-  "requestFramePermissions": ["geolocation"],
+  "requestFramePermissions": ["geolocation", "camera"],
   "majorCapabilities": []
 }

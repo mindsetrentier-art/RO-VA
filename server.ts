@@ -2,6 +2,9 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import sharp from "sharp";
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({});
 
 const iconColors: Record<string, string[]> = {
   purple: ["#7C5CFF", "#2563EB"],
@@ -34,7 +37,7 @@ async function startServer() {
   const PORT = 3000;
 
   // JSON middleware
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
 
   // API Routes
   app.get("/manifest.json", (req, res) => {
@@ -212,6 +215,37 @@ async function startServer() {
 
     } catch (e: any) {
       console.error("Error in /api/weather/air:", e);
+      res.status(500).json({ error: e.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/scan", async (req, res) => {
+    try {
+      const { imageParams, prompt } = req.body;
+      if (!imageParams) {
+        return res.status(400).json({ error: "Missing image" });
+      }
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          prompt || "Extract financial data from this image and return it as JSON matching this structure: { productName: string, initialInvestment: number, unitPrice: number, unitCost: number, salesVolume: number, annualGrowth: number }. Make reasonable guesses if not all fields exist.",
+          {
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: imageParams,
+            }
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+      
+      res.json({ data: response.text });
+      
+    } catch (e: any) {
+      console.error("Error in /api/scan:", e);
       res.status(500).json({ error: e.message || "Internal server error" });
     }
   });

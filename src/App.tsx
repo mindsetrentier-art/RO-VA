@@ -4,7 +4,7 @@
  */
 
 import { motion, AnimatePresence } from "motion/react";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Area,
   AreaChart,
@@ -83,6 +83,11 @@ import {
   Truck,
   Maximize,
   Minimize,
+  Share2,
+  Camera,
+  FileSpreadsheet,
+  Save,
+  FileDown,
 } from "lucide-react";
 import { useSimulationStore, ScenarioType, PeriodType } from "./store";
 import {
@@ -108,8 +113,14 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { handleFirestoreError, OperationType } from "./lib/firebaseUtils";
-import { WeatherView } from "./WeatherView";
+import { WeatherView, WeatherWidget } from "./WeatherView";
 import { StatusBar } from "./StatusBar";
+import { PdfReportTemplate } from "./PdfReportTemplate";
+import { EmployeePdfReportTemplate } from "./EmployeePdfReportTemplate";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+
+import { useColorCycle, getExpandedColorPalette } from "./colorSystem";
 
 // --- Utils ---
 const formatCurrency = (v: number, withM = true) => {
@@ -538,22 +549,46 @@ const PremiumSlider = ({
   max,
   format,
   icon: Icon,
+  maxLimit,
 }: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState(value.toString());
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isEditing) {
       setInputValue(value.toString());
+      setErrorMsg(null);
     }
   }, [value, isEditing]);
 
   const handleBlur = () => {
-    setIsEditing(false);
     const num = parseFloat(inputValue);
-    if (!isNaN(num)) {
-      onChange(num);
+    
+    if (isNaN(num)) {
+      setErrorMsg("Veuillez entrer un nombre valide");
+      return;
     }
+    if (num < 0) {
+      setErrorMsg("La valeur doit être positive");
+      return;
+    }
+
+    const volumeMatch = label.toLowerCase().includes("volume") || label.toLowerCase().includes("projet");
+    if (volumeMatch && num > 1000000) {
+      setErrorMsg("Le volume ne doit pas dépasser 1 million");
+      return;
+    }
+
+    const absoluteMax = maxLimit ?? 1000000000;
+    if (num > absoluteMax) {
+      setErrorMsg(`Valeur irréaliste (max: ${format ? format(absoluteMax) : absoluteMax})`);
+      return;
+    }
+
+    setErrorMsg(null);
+    setIsEditing(false);
+    onChange(num);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -563,6 +598,7 @@ const PremiumSlider = ({
     if (e.key === "Escape") {
       setIsEditing(false);
       setInputValue(value.toString());
+      setErrorMsg(null);
     }
   };
 
@@ -572,10 +608,10 @@ const PremiumSlider = ({
 
   return (
     <div className="mb-6 last:mb-0">
-      <div className="flex justify-between items-center mb-4 min-h-[32px]">
+      <div className="flex justify-between items-center mb-4 min-h-[32px] relative">
         <div className="flex items-center gap-2 text-gray-400">
           {Icon && <Icon size={16} />}
-          <label className="text-xs font-semibold uppercase tracking-widest">
+          <label className="text-xs font-semibold uppercase tracking-widest flex items-center gap-2">
             {label}
           </label>
         </div>
@@ -588,16 +624,22 @@ const PremiumSlider = ({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
+              className="flex flex-col items-end"
             >
               <input
                 autoFocus
                 type="number"
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={(e) => { setInputValue(e.target.value); setErrorMsg(null); }}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
-                className="text-sm font-bold text-[var(--primary)] tabular-nums bg-[var(--primary)]/20 px-2 py-1 rounded-md border border-[var(--primary)] text-right w-24 outline-none focus:ring-2 focus:ring-[var(--primary)]/50"
+                className={`text-sm font-bold tabular-nums px-2 py-1 rounded-md text-right w-24 outline-none focus:ring-2 ${errorMsg ? 'bg-red-500/20 border border-red-500 text-red-400 focus:ring-red-500/50' : 'bg-[var(--primary)]/20 border border-[var(--primary)] text-[var(--primary)] focus:ring-[var(--primary)]/50'}`}
               />
+              {errorMsg && (
+                <span className="absolute top-full mt-1 right-0 text-[10px] text-red-400 font-bold max-w-[200px] text-right">
+                  {errorMsg}
+                </span>
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -819,69 +861,12 @@ const FirebaseSync = ({ user }: { user: FirebaseUser }) => {
           // If profile doesn't exist, create it with default store values
           const currentStore = useSimulationStore.getState();
           // Filter out actions from the store state for firestore storage
-          const {
-            setInitialCapital,
-            setUnitPrice,
-            setVolume,
-            setAnnualGrowth,
-            setUnitCost,
-            setFixedCosts,
-            setMarketingExpense,
-            setLogisticsOps,
-            setSafetyStock,
-            setInitialStock,
-            setFinalStock,
-            setPeriodType,
-            setTargetSales,
-            setTargetSalesPeriod,
-            setProductName,
-            setAnalysisMode,
-            setBusinessType,
-            addEmployee,
-            removeEmployee,
-            updateEmployee,
-            setRent,
-            setUtilities,
-            setTaxCharges,
-            setInsurance,
-            setMaintenance,
-            setOtherMiscExpenses,
-            setMarginCoefficient,
-            setMonthlyTaxes,
-            setLoanPayment,
-            setVatPayment,
-            setUrsafGlobal,
-            setMutualInsurancePerEmployee,
-            addOtherExpense,
-            removeOtherExpense,
-            updateOtherExpense,
-            setLoanAmount,
-            setLoanInterestRate,
-            setLoanDurationMonths,
-            setLoanPaymentsMade,
-            setLowCoverageThreshold,
-            setSafetyStockAlertThreshold,
-            setThemeMode,
-            setPrimaryColor,
-            setSecondaryColor,
-            setActiveScenario,
-            updateLastSaved,
-            saveSnapshot,
-            deleteSnapshot,
-            saveToHistory,
-            loadFromHistory,
-            deleteHistoryItem,
-            setAll,
-            toggleComparison,
-            clearComparison,
-            addBoutiqueProduct,
-            removeBoutiqueProduct,
-            updateBoutiqueProduct,
-            setEstablishmentName,
-            history,
-            snapshots,
-            ...persistableData
-          } = currentStore;
+          const persistableData: any = {};
+          for (const [key, value] of Object.entries(currentStore)) {
+            if (typeof value !== "function" && key !== "history" && key !== "snapshots") {
+              persistableData[key] = value;
+            }
+          }
 
           await setDoc(userDocRef, persistableData);
         }
@@ -952,69 +937,12 @@ const FirebaseSync = ({ user }: { user: FirebaseUser }) => {
   useEffect(() => {
     if (!isReady) return;
 
-    const {
-      setInitialCapital,
-      setUnitPrice,
-      setVolume,
-      setAnnualGrowth,
-      setUnitCost,
-      setFixedCosts,
-      setMarketingExpense,
-      setLogisticsOps,
-      setSafetyStock,
-      setInitialStock,
-      setFinalStock,
-      setPeriodType,
-      setTargetSales,
-      setTargetSalesPeriod,
-      setProductName,
-      setAnalysisMode,
-      setBusinessType,
-      addEmployee,
-      removeEmployee,
-      updateEmployee,
-      setRent,
-      setUtilities,
-      setTaxCharges,
-      setInsurance,
-      setMaintenance,
-      setOtherMiscExpenses,
-      setMarginCoefficient,
-      setMonthlyTaxes,
-      setLoanPayment,
-      setVatPayment,
-      setUrsafGlobal,
-      setMutualInsurancePerEmployee,
-      addOtherExpense,
-      removeOtherExpense,
-      updateOtherExpense,
-      setLoanAmount,
-      setLoanInterestRate,
-      setLoanDurationMonths,
-      setLoanPaymentsMade,
-      setLowCoverageThreshold,
-      setSafetyStockAlertThreshold,
-      setThemeMode,
-      setPrimaryColor,
-      setSecondaryColor,
-      setActiveScenario,
-      updateLastSaved,
-      saveSnapshot,
-      deleteSnapshot,
-      saveToHistory,
-      loadFromHistory,
-      deleteHistoryItem,
-      setAll,
-      toggleComparison,
-      clearComparison,
-      addBoutiqueProduct,
-      removeBoutiqueProduct,
-      updateBoutiqueProduct,
-      setEstablishmentName,
-      history,
-      snapshots,
-      ...persistableData
-    } = store;
+    const persistableData: any = {};
+    for (const [key, value] of Object.entries(store)) {
+      if (typeof value !== "function" && key !== "history" && key !== "snapshots") {
+        persistableData[key] = value;
+      }
+    }
 
     const timer = setTimeout(async () => {
       try {
@@ -1263,6 +1191,118 @@ const DashboardView = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const state = store as any;
   const results = runSimulation(state, state.activeScenario);
+  const pdfRef = useRef<HTMLDivElement>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+
+  const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64Str = event.target?.result?.toString().split(",")[1];
+        if (!base64Str) return;
+
+        const res = await fetch("/api/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageParams: base64Str })
+        });
+        const data = await res.json();
+        
+        if (data.data) {
+          let jsonStr = data.data;
+          const match = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (match) {
+            jsonStr = match[1];
+          }
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const toUpdate: any = {};
+            if (parsed.productName) toUpdate.productName = parsed.productName;
+            if (parsed.initialInvestment) toUpdate.initialCapital = parsed.initialInvestment;
+            if (parsed.unitPrice) toUpdate.unitPrice = parsed.unitPrice;
+            if (parsed.unitCost) toUpdate.unitCost = parsed.unitCost;
+            if (parsed.salesVolume) toUpdate.volume = parsed.salesVolume;
+            if (parsed.annualGrowth) toUpdate.annualGrowth = parsed.annualGrowth;
+            if (Object.keys(toUpdate).length > 0) {
+              store.setAll(toUpdate);
+              alert("Données scannées et appliquées ! Génération du PDF...");
+              handleGeneratePdf();
+            } else {
+              alert("Aucune donnée financière détectée !");
+            }
+          } catch(e) {
+            console.error(e);
+            alert("Erreur d'analyse de l'image");
+          }
+        }
+        setIsScanning(false);
+      };
+      reader.onerror = () => setIsScanning(false);
+      reader.readAsDataURL(file);
+    } catch(err) {
+      console.error(err);
+      alert("Erreur lors du scan");
+      setIsScanning(false);
+    }
+  };
+
+  const handleGeneratePdf = async () => {
+    if (!pdfRef.current || isGeneratingPdf) return;
+    try {
+      setIsGeneratingPdf(true);
+      const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "pt",
+        format: "a4",
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Roiva_Rapport_${state.productName || "Projet"}.pdf`);
+    } catch (err) {
+      console.error("Erreur PDF:", err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleExportCSV = () => {
+    const data = [
+      ["Paramètre", "Valeur"],
+      ["Produit", state.productName || "Projet Sans Nom"],
+      ["Investissement Initial", state.initialCapital || state.initialInvestment],
+      ["Prix Unitaire", state.unitPrice],
+      ["Coût Unitaire", state.unitCost],
+      ["Volume", state.volume],
+      ["Croissance Annuelle", `${state.annualGrowth}%`],
+      ["", ""],
+      ["Chiffre d'Affaires", results.revenue],
+      ["Bénéfice Net", results.netProfit],
+      ["Marge Brute %", results.grossMarginPercent],
+      ["Seuil de Rentabilité", results.breakEvenUnits],
+      ["ROI %", results.roi.toFixed(2)],
+      ["Score Roïva", results.roivaScore],
+    ];
+
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(data.map(e => e.join(",")).join("\n"));
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    const dateStr = new Date().toISOString().split("T")[0];
+    const fileName = `roiva_simulation_${(state.productName || "projet").replace(/\s+/g, '_')}_${dateStr}.csv`;
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const score = useCountUp(results.roivaScore);
 
@@ -1312,97 +1352,178 @@ const DashboardView = () => {
         onClose={() => setIsModalOpen(false)}
       />
 
-      <header className="flex flex-col gap-4">
-        <div className="flex justify-between items-start">
+      <header className="relative overflow-hidden rounded-[2rem] bg-[var(--card)] border border-[var(--border)] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.2)]">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--primary)]/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 mix-blend-screen pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-[var(--secondary)]/10 rounded-full blur-[50px] translate-y-1/2 -translate-x-1/3 mix-blend-screen pointer-events-none" />
+        
+        <div className="flex justify-between items-start relative z-10">
           <div className="flex-1">
-            <div className="flex items-center justify-between mb-2 pr-4">
-              <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
-                Aperçu{" "}
-                {store.analysisMode === "Product" ? "Financier" : "du Projet"}
+            <div className="flex items-center gap-2 mb-4">
+              <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">
+                {store.analysisMode === "Product" ? "Aperçu Financier" : "Aperçu du Projet"}
               </p>
-              <span className="text-[10px] text-[var(--primary)] font-bold px-2 py-0.5 bg-[var(--primary)]/10 rounded border border-[var(--primary)]/20 uppercase">
+              <span className="text-[9px] text-[var(--primary)] font-black px-2 py-0.5 bg-[var(--primary)]/10 rounded-full border border-[var(--primary)]/20 uppercase tracking-widest">
                 {store.productName}
               </span>
             </div>
-            <div className="flex items-end gap-3 mb-1">
-              <h1 className="text-3xl lg:text-4xl font-extrabold text-[var(--text)] tabular-nums tracking-tighter">
+            <div className="flex flex-col gap-2 mb-3">
+              <h1 className="text-4xl lg:text-5xl font-black text-[var(--text)] tabular-nums tracking-tighter drop-shadow-sm">
                 {formatCurrency(results.revenue)}
               </h1>
-              <div className="mb-1 flex items-center gap-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-bold border border-emerald-500/20">
-                <TrendingUp size={12} strokeWidth={3} />+
-                {state.annualGrowth.toFixed(1)}%
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg text-[11px] font-black border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                  <TrendingUp size={12} strokeWidth={3} />
+                  +{state.annualGrowth.toFixed(1)}%
+                </div>
+                <p className="text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)]">
+                  Croissance
+                </p>
               </div>
             </div>
-            <p className="text-sm text-[var(--text-muted)]">
-              {store.analysisMode === "Product"
-                ? "Revenus projetés"
-                : "Chiffre d'affaires prévisionnel"}{" "}
-              ({state.activeScenario})
-            </p>
           </div>
 
           {/* Roïva Score Gauge */}
-          <div className="relative flex flex-col items-center">
-            <div className="w-16 h-16 rounded-full border-4 border-[var(--primary)]/20 flex items-center justify-center relative">
-              <svg className="absolute inset-0 w-full h-full -rotate-90">
+          <div className="relative flex flex-col items-center shrink-0 ml-4">
+            <div className="w-24 h-24 rounded-full flex items-center justify-center relative bg-[var(--bg)] shadow-[inset_0_4px_20px_rgba(0,0,0,0.5)] border border-[var(--border)]">
+              <svg className="absolute inset-0 w-full h-full -rotate-90 scale-[1.1] drop-shadow-[0_0_10px_rgba(124,92,255,0.3)]">
                 <circle
-                  cx="32"
-                  cy="32"
-                  r="28"
+                  cx="48"
+                  cy="48"
+                  r="42"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="4"
                   className="text-white/5"
                 />
                 <motion.circle
-                  cx="32"
-                  cy="32"
-                  r="28"
+                  cx="48"
+                  cy="48"
+                  r="42"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="4"
-                  strokeDasharray="175.9"
-                  initial={{ strokeDashoffset: 175.9 }}
-                  animate={{ strokeDashoffset: 175.9 - (175.9 * score) / 100 }}
+                  strokeDasharray="263.9"
+                  initial={{ strokeDashoffset: 263.9 }}
+                  animate={{ strokeDashoffset: 263.9 - (263.9 * score) / 100 }}
                   transition={{ duration: 1.5, ease: "easeOut" }}
                   strokeLinecap="round"
                   className="text-[var(--primary)]"
                 />
               </svg>
-              <span className="text-xl font-bold text-[var(--text)] z-10">
-                {score}
-              </span>
+              <div className="flex flex-col items-center justify-center z-10 relative">
+                <span className="text-3xl font-black text-[var(--text)] leading-none mt-1 tracking-tighter">
+                  {score}
+                </span>
+                <span className="text-[9px] font-black text-[var(--primary)] uppercase tracking-widest mt-1">
+                  Roïva
+                </span>
+              </div>
             </div>
-            <span className="text-[8px] font-bold text-[var(--text-muted)] mt-1 uppercase tracking-tighter">
-              Score Roïva
-            </span>
           </div>
         </div>
       </header>
 
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="group relative flex items-center justify-between w-full bg-[var(--primary)] hover:opacity-90 text-white p-4 rounded-2xl overflow-hidden transition-all shadow-lg shadow-[var(--primary)]/20 active:scale-[0.98]"
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-white/20 rounded-xl">
-            <Plus size={20} className="text-white" />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="group relative flex items-center justify-between w-full bg-[var(--primary)] hover:opacity-90 text-white p-4 rounded-2xl overflow-hidden transition-all shadow-lg shadow-[var(--primary)]/20 active:scale-[0.98]"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <Plus size={20} className="text-white" />
+            </div>
+            <div className="text-left">
+              <p className="text-[11px] font-black uppercase tracking-widest leading-none mb-1">
+                Nouveau
+              </p>
+              <p className="text-[9px] text-white/70 font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                Simulation
+              </p>
+            </div>
           </div>
-          <div className="text-left">
-            <p className="text-xs font-black uppercase tracking-widest leading-none mb-1">
-              Ajouter un Produit
-            </p>
-            <p className="text-[10px] text-white/70 font-medium">
-              Calculer marge, coeff & rotation
-            </p>
+        </button>
+
+        <label className="cursor-pointer group relative flex items-center justify-between w-full bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--primary)]/5 hover:border-[var(--primary)]/30 text-[var(--text)] p-4 rounded-2xl overflow-hidden transition-all shadow-sm active:scale-[0.98]">
+          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScan} />
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[var(--primary)]/10 text-[var(--primary)] rounded-xl group-hover:bg-[var(--primary)] group-hover:text-white transition-colors">
+              <Camera size={20} />
+            </div>
+            <div className="text-left">
+              <p className="text-[11px] font-black uppercase tracking-widest leading-none mb-1 text-[var(--primary)] whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                {isScanning ? "Analyse..." : "Scan Photo"}
+              </p>
+              <p className="text-[9px] text-[var(--text-muted)] font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                Auto-remplir
+              </p>
+            </div>
           </div>
-        </div>
-        <Calculator
-          className="text-white/40 group-hover:text-white/60 transition-colors"
-          size={24}
-        />
-      </button>
+        </label>
+
+        <button
+          onClick={handleGeneratePdf}
+          disabled={isGeneratingPdf}
+          className="group relative flex items-center justify-between w-full bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--primary)]/5 hover:border-[var(--primary)]/30 text-[var(--text)] p-4 rounded-2xl overflow-hidden transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[var(--primary)]/10 text-[var(--primary)] rounded-xl group-hover:bg-[var(--primary)] group-hover:text-white transition-colors">
+              <Download size={20} />
+            </div>
+            <div className="text-left">
+              <p className="text-[11px] font-black uppercase tracking-widest leading-none mb-1 text-[var(--primary)] whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                {isGeneratingPdf ? "Génération..." : "Rapport"}
+              </p>
+              <p className="text-[9px] text-[var(--text-muted)] font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                Exporter PDF
+              </p>
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={handleExportCSV}
+          className="group relative flex items-center justify-between w-full bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--primary)]/5 hover:border-[var(--primary)]/30 text-[var(--text)] p-4 rounded-2xl overflow-hidden transition-all shadow-sm active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[var(--primary)]/10 text-[var(--primary)] rounded-xl group-hover:bg-[var(--primary)] group-hover:text-white transition-colors">
+              <FileSpreadsheet size={20} />
+            </div>
+            <div className="text-left">
+              <p className="text-[11px] font-black uppercase tracking-widest leading-none mb-1 text-[var(--primary)] whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                Export CSV
+              </p>
+              <p className="text-[9px] text-[var(--text-muted)] font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                Données Brutes
+              </p>
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => alert("Fonctionnalité de partage non implémentée.")}
+          className="group relative flex items-center justify-between w-full bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--primary)]/5 hover:border-[var(--primary)]/30 text-[var(--text)] p-4 rounded-2xl overflow-hidden transition-all shadow-sm active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[var(--primary)]/10 text-[var(--primary)] rounded-xl group-hover:bg-[var(--primary)] group-hover:text-white transition-colors">
+              <Share2 size={20} />
+            </div>
+            <div className="text-left">
+              <p className="text-[11px] font-black uppercase tracking-widest leading-none mb-1 text-[var(--primary)] whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                Partager
+              </p>
+              <p className="text-[9px] text-[var(--text-muted)] font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">
+                Envoyer lien
+              </p>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div className="mb-2 mt-2">
+        <PdfReportTemplate ref={pdfRef} />
+        <WeatherWidget />
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <KPICard
@@ -1439,6 +1560,51 @@ const DashboardView = () => {
           isCurrency={true}
           colorClass="text-cyan-400"
         />
+      </div>
+
+      <div className="space-y-4 mt-6 mb-6">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">
+            Performances Annuelles
+          </h3>
+          <Activity size={14} className="text-[var(--primary)]" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <KPICard
+            title="C.A. Annuel"
+            value={results.revenue}
+            trend="Revenu brut projeté"
+            icon={TrendingUp}
+            prefix="€"
+            isCurrency={true}
+            colorClass="text-[#3B82F6]"
+          />
+          <KPICard
+            title="Bénéfice Net Annuel"
+            value={results.netProfit}
+            trend="Rendement annuel net"
+            icon={Wallet}
+            prefix="€"
+            isCurrency={true}
+            colorClass="text-[#10B981]"
+          />
+          <KPICard
+            title="ROI (%)"
+            value={results.roi}
+            trend="Performance globale"
+            icon={Target}
+            suffix="%"
+            colorClass="text-[var(--primary)]"
+          />
+          <KPICard
+            title="Marge Nette (%)"
+            value={results.margin}
+            trend="Bénéfice / Vente"
+            icon={PieChart}
+            suffix="%"
+            colorClass="text-amber-400"
+          />
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -5644,6 +5810,40 @@ const SettingsView = () => {
               ))}
             </div>
           </div>
+          
+          <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+            <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest block">
+              Bibliothèque de +300 Couleurs
+            </label>
+            <div className="space-y-6">
+              {getExpandedColorPalette().map((category, catIdx) => (
+                <div key={catIdx} className="space-y-2">
+                  <h4 className="text-[10px] font-bold text-[var(--text)] uppercase opacity-80">{category.name}</h4>
+                  <div className="grid grid-cols-10 sm:grid-cols-12 gap-1.5 h-32 overflow-y-auto no-scrollbar pr-2 pb-2">
+                    {category.colors.map((color, colorIdx) => (
+                      <button
+                        key={`${catIdx}-${colorIdx}`}
+                        onClick={() => {
+                          setPrimaryColor(color);
+                          // Auto set a nuanced secondary color for aesthetics
+                          const r = parseInt(color.slice(1, 3), 16);
+                          const g = parseInt(color.slice(3, 5), 16);
+                          const b = parseInt(color.slice(5, 7), 16);
+                          const isDark = (r * 0.299 + g * 0.587 + b * 0.114) < 128;
+                          const secondary = isDark ? '#ffffff' : '#111827';
+                          setSecondaryColor(secondary);
+                        }}
+                        className={`w-full aspect-square rounded-full cursor-pointer hover:scale-125 focus:scale-125 transition-transform ${primaryColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-transparent outline-none' : ''}`}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </Card>
 
@@ -5829,11 +6029,36 @@ const BoutiqueQuickAddModal = ({
 const BoutiqueView = () => {
   const store = useSimulationStore();
   const results = runSimulation(store as any, store.activeScenario);
+  const employeePdfRef = useRef<HTMLDivElement>(null);
+  const [isGeneratingEmployeePdf, setIsGeneratingEmployeePdf] = useState(false);
   const [breakEvenPeriod, setBreakEvenPeriod] = useState<
     "Jour" | "Semaine" | "Mois"
   >("Mois");
   const [showEmployeesList, setShowEmployeesList] = useState(false);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+
+  const exportEmployeePDF = async () => {
+    if (!employeePdfRef.current || isGeneratingEmployeePdf) return;
+    try {
+      setIsGeneratingEmployeePdf(true);
+      const canvas = await html2canvas(employeePdfRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Roiva_Masse_Salariale_${new Date().toISOString().split("T")[0]}.pdf`);
+    } catch (error) {
+      console.error("PDF generation failed", error);
+      alert("Erreur lors de la génération du PDF");
+    } finally {
+      setIsGeneratingEmployeePdf(false);
+    }
+  };
 
   const exportBoutiqueProductsPDF = () => {
     const doc = new jsPDF();
@@ -5988,16 +6213,29 @@ const BoutiqueView = () => {
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest leading-none mb-1">
-                    Effectif Actuel
-                  </p>
-                  <p className="text-xl font-black text-[var(--primary)] tracking-tighter">
-                    {store.employees.length}{" "}
-                    <span className="text-[10px] font-bold text-[var(--text-muted)] tracking-normal">
-                      Pers.
+                <div className="flex items-center gap-6">
+                  <div className="text-right hidden sm:block">
+                    <p className="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest leading-none mb-1">
+                      Effectif Actuel
+                    </p>
+                    <p className="text-xl font-black text-[var(--primary)] tracking-tighter">
+                      {store.employees.length}{" "}
+                      <span className="text-[10px] font-bold text-[var(--text-muted)] tracking-normal">
+                        Pers.
+                      </span>
+                    </p>
+                  </div>
+                  <button
+                    onClick={exportEmployeePDF}
+                    disabled={isGeneratingEmployeePdf}
+                    className="flex flex-col items-center justify-center gap-1 p-2 bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90 rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                    title="Générer un PDF de la liste des salariés"
+                  >
+                    <FileDown size={18} />
+                    <span className="text-[8px] font-black uppercase tracking-widest leading-none">
+                      {isGeneratingEmployeePdf ? "Génération" : "PDF Liste"}
                     </span>
-                  </p>
+                  </button>
                 </div>
               </div>
             )}
@@ -6014,11 +6252,11 @@ const BoutiqueView = () => {
                   >
                     <button
                       onClick={() => store.removeEmployee(emp.id)}
-                      className="absolute top-4 right-4 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-rose-500/10 rounded-lg"
+                      className="absolute top-4 right-4 text-rose-500 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg lg:p-1 lg:bg-transparent"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={16} />
                     </button>
-                    <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center gap-3 mb-4 pr-10">
                       <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
                         <User size={16} className="text-[var(--primary)]" />
                       </div>
@@ -6040,15 +6278,17 @@ const BoutiqueView = () => {
                         <div className="relative">
                           <input
                             type="number"
+                            step="any"
                             value={emp.salary}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
                               store.updateEmployee(
                                 emp.id,
                                 "salary",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
+                                e.target.value === "" ? "" : isNaN(val) ? 0 : val
+                              );
+                            }}
+                            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--primary)]/50 focus:border-[var(--primary)] focus:outline-none"
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
                             €
@@ -6062,19 +6302,25 @@ const BoutiqueView = () => {
                         <div className="relative">
                           <input
                             type="number"
-                            value={emp.charges || 45}
-                            onChange={(e) =>
+                            step="any"
+                            value={emp.charges}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
                               store.updateEmployee(
                                 emp.id,
                                 "charges",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--primary)]/50 focus:border-[var(--primary)] focus:outline-none"
+                                e.target.value === "" ? "" : isNaN(val) ? 0 : val
+                              );
+                            }}
+                            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 pr-10 text-xs font-bold text-[var(--text)] transition-colors hover:border-[var(--primary)]/50 focus:border-[var(--primary)] focus:outline-none"
                           />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
-                            %
-                          </span>
+                          <button 
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-[var(--text)] bg-[var(--card)] border border-[var(--border)] hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] transition-colors rounded-md w-6 h-6 flex justify-center items-center"
+                            onClick={() => store.updateEmployee(emp.id, "chargeType", emp.chargeType === "€" ? "%" : "€")}
+                            title={emp.chargeType === "€" ? "Basculer en pourcentage" : "Basculer en montant fixe"}
+                          >
+                            {emp.chargeType === "€" ? "€" : "%"}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -6092,6 +6338,7 @@ const BoutiqueView = () => {
                           {estimateSalaryCostFrance(
                             emp.salary || 0,
                             emp.charges,
+                            emp.chargeType,
                           ).brut_salary.toLocaleString()}
                         </span>
                       </div>
@@ -6107,6 +6354,7 @@ const BoutiqueView = () => {
                           {estimateSalaryCostFrance(
                             emp.salary || 0,
                             emp.charges,
+                            emp.chargeType,
                           ).employer_charges.toLocaleString()}
                         </span>
                       </div>
@@ -6122,6 +6370,7 @@ const BoutiqueView = () => {
                           {estimateSalaryCostFrance(
                             emp.salary || 0,
                             emp.charges,
+                            emp.chargeType,
                           ).retirement_contribution.toLocaleString()}
                         </span>
                       </div>
@@ -6137,6 +6386,7 @@ const BoutiqueView = () => {
                             estimateSalaryCostFrance(
                               emp.salary || 0,
                               emp.charges,
+                              emp.chargeType,
                             ).total_cost +
                             (store.mutualInsurancePerEmployee || 0)
                           ).toLocaleString()}{" "}
@@ -6155,6 +6405,7 @@ const BoutiqueView = () => {
                                 ((estimateSalaryCostFrance(
                                   emp.salary || 0,
                                   emp.charges,
+                                  emp.chargeType,
                                 ).total_cost +
                                   (store.mutualInsurancePerEmployee || 0)) /
                                   results.employeeCosts) *
@@ -6174,6 +6425,7 @@ const BoutiqueView = () => {
                                 (((estimateSalaryCostFrance(
                                   emp.salary || 0,
                                   emp.charges,
+                                  emp.chargeType,
                                 ).total_cost +
                                   (store.mutualInsurancePerEmployee || 0)) *
                                   12) /
@@ -6188,12 +6440,18 @@ const BoutiqueView = () => {
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{
-                            width: `${results.employeeCosts > 0 ? ((estimateSalaryCostFrance(emp.salary || 0, emp.charges).total_cost + (store.mutualInsurancePerEmployee || 0)) / results.employeeCosts) * 100 : 0}%`,
+                            width: `${results.employeeCosts > 0 ? ((estimateSalaryCostFrance(emp.salary || 0, emp.charges, emp.chargeType).total_cost + (store.mutualInsurancePerEmployee || 0)) / results.employeeCosts) * 100 : 0}%`,
                           }}
                           className="h-full bg-[var(--primary)]"
                         />
                       </div>
                     </div>
+                    <button
+                      onClick={() => setToast({ title: "Enregistré", message: "Les données de l'employé ont bien été enregistrées.", type: "success" })}
+                      className="w-full mt-4 py-2.5 flex items-center justify-center gap-2 bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm shadow-[var(--primary)]/20 active:scale-[0.98]"
+                    >
+                      <Save size={14} /> Enregistrer
+                    </button>
                   </motion.div>
                 ))}
                 {store.employees.length === 0 && (
@@ -6290,14 +6548,15 @@ const BoutiqueView = () => {
                       <div className="relative">
                         <input
                           type="number"
-                          value={prod.unitCost}
-                          onChange={(e) =>
+                          value={prod.unitCost === 0 ? "" : prod.unitCost}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
                             store.updateBoutiqueProduct(
                               prod.id,
                               "unitCost",
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
+                              isNaN(val) ? 0 : val,
+                            );
+                          }}
                           className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
@@ -6313,14 +6572,15 @@ const BoutiqueView = () => {
                         <input
                           type="number"
                           step="0.1"
-                          value={prod.marginCoefficient}
-                          onChange={(e) =>
+                          value={prod.marginCoefficient === 0 ? "" : prod.marginCoefficient}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
                             store.updateBoutiqueProduct(
                               prod.id,
                               "marginCoefficient",
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
+                              isNaN(val) ? 0 : val,
+                            );
+                          }}
                           className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
@@ -6336,14 +6596,15 @@ const BoutiqueView = () => {
                     <div className="relative">
                       <input
                         type="number"
-                        value={prod.expectedVolume}
-                        onChange={(e) =>
+                        value={prod.expectedVolume === 0 ? "" : prod.expectedVolume}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
                           store.updateBoutiqueProduct(
                             prod.id,
                             "expectedVolume",
-                            parseInt(e.target.value) || 0,
-                          )
-                        }
+                            isNaN(val) ? 0 : val,
+                          );
+                        }}
                         className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text)]"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--text-muted)]">
@@ -6351,41 +6612,29 @@ const BoutiqueView = () => {
                       </span>
                     </div>
                   </div>
-                  <div className="bg-white/5 p-3 rounded-xl space-y-1">
-                    <div className="flex justify-between items-center text-[9px] font-bold">
-                      <span className="text-[var(--text-muted)] uppercase">
+                  <div className="bg-white/5 p-4 rounded-xl space-y-2 border border-white/10 mt-4">
+                    <div className="flex justify-between items-center text-[10px] font-bold">
+                      <span className="text-[var(--text-muted)] uppercase tracking-wider">
                         Prix de Vente Estimé
                       </span>
-                      <span className="text-white">
-                        €
-                        {(
-                          prod.unitCost * prod.marginCoefficient
-                        ).toLocaleString()}
+                      <span className="text-white text-xs">
+                        {Math.round(prod.unitCost * prod.marginCoefficient).toLocaleString()} €
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-[9px] font-bold">
-                      <span className="text-[var(--text-muted)] uppercase">
+                    <div className="flex justify-between items-center text-[10px] font-bold">
+                      <span className="text-[var(--text-muted)] uppercase tracking-wider">
                         C.A. Produit
                       </span>
-                      <span className="text-[var(--primary)]">
-                        €
-                        {(
-                          prod.unitCost *
-                          prod.marginCoefficient *
-                          prod.expectedVolume
-                        ).toLocaleString()}
+                      <span className="text-[var(--primary)] text-xs">
+                        {Math.round(prod.unitCost * prod.marginCoefficient * prod.expectedVolume).toLocaleString()} €
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-[9px] font-bold">
-                      <span className="text-[var(--text-muted)] uppercase">
+                    <div className="flex justify-between items-center text-[10px] font-bold pt-1 border-t border-white/10">
+                      <span className="text-[var(--text-muted)] uppercase tracking-wider">
                         Bénéfice estimé / mois
                       </span>
-                      <span className="text-emerald-400">
-                        €
-                        {(
-                          ((prod.unitCost * prod.marginCoefficient) - prod.unitCost) *
-                          (prod.expectedVolume / 12)
-                        ).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
+                      <span className="text-emerald-400 text-xs">
+                        {Math.round(((prod.unitCost * prod.marginCoefficient) - prod.unitCost) * (prod.expectedVolume / 12)).toLocaleString()} €
                       </span>
                     </div>
                   </div>
@@ -6796,6 +7045,7 @@ const BoutiqueView = () => {
         </div>
 
         <div className="space-y-8">
+          <EmployeePdfReportTemplate ref={employeePdfRef} />
           {/* Section Coefficient de Marge */}
           <Card className="p-6 bg-gradient-to-br from-[var(--primary)] to-[var(--secondary)] border-none text-white overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 blur-[60px] -mr-16 -mt-16 rounded-full" />
@@ -7152,26 +7402,77 @@ export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  useColorCycle();
+
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const doc = document as any;
+      const isFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement);
+      // Only update if the browser is using real fullscreen. 
+      // If we are in fallback mode (isFs is false but isFullscreen was set to true manually), 
+      // we do not want to force it back to false unnecessarily if the event fired from somewhere else.
+      if (isFs) setIsFullscreen(true);
+      else {
+        // We only flip to false if the browser exited real fullscreen
+        // (but we only do this if we were actually using real fullscreen API)
+        // Actually, just syncing it is fine, but it might break fallback mode if an event fires.
+        // Let's just track it via state in fallback.
+        setIsFullscreen(isFs);
+      }
     };
     document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("msfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("msfullscreenchange", handleFullscreenChange);
+    };
   }, []);
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable fullscreen: ${err.message}`);
-        // Fallback to pseudo-fullscreen if HTML5 fullscreen fails
-        setIsFullscreen(true); 
-      });
+    const docEl = document.documentElement as any;
+    const requestFs = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.msRequestFullscreen;
+    
+    const doc = document as any;
+    const exitFs = doc.exitFullscreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
+
+    if (!isFullscreen) {
+      if (requestFs) {
+        try {
+          const promise = requestFs.call(docEl);
+          if (promise) {
+            promise.catch((err: any) => {
+              console.error(`Error attempting to enable fullscreen: ${err.message}`);
+              setIsFullscreen(true); // Fallback
+            });
+          } else {
+             setIsFullscreen(true);
+          }
+        } catch (e) {
+          setIsFullscreen(true); // Fallback
+        }
+      } else {
+        setIsFullscreen(true); // Fallback
+      }
     } else {
-      document.exitFullscreen().catch(err => {
-         console.error(`Error attempting to exit fullscreen: ${err.message}`);
-         setIsFullscreen(false);
-      });
+      if (exitFs && (doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement)) {
+        try {
+          const promise = exitFs.call(doc);
+          if (promise) {
+             promise.catch((err: any) => {
+               console.error(`Error attempting to exit fullscreen: ${err.message}`);
+               setIsFullscreen(false);
+             });
+          } else {
+             setIsFullscreen(false);
+          }
+        } catch (e) {
+          setIsFullscreen(false);
+        }
+      } else {
+        setIsFullscreen(false); // Fallback
+      }
     }
   };
 
@@ -7271,64 +7572,66 @@ export default function App() {
 
       {/* TopNav */}
       {!isFullscreen && (
-        <header className="fixed top-8 w-full z-50 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--border)] flex justify-between items-center px-6 h-16 transition-colors duration-300">
-          <div className="cursor-pointer" onClick={() => setShowSmartBar(true)}>
-            <Logo size="sm" />
-          </div>
-
-          <div className="hidden sm:block">
-            <AnalysisModeToggle
-              value={store.analysisMode}
-              setValue={store.setAnalysisMode}
-            />
-          </div>
-
-          <div className="flex items-center gap-4">
-            {store.lastSaved && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                key={store.lastSaved}
-                className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-gray-500 font-medium bg-white/5 px-2 py-1 rounded-md border border-white/5"
-              >
-                <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="hidden xs:inline">Sauvegardé à</span>{" "}
-                {store.lastSaved}
-              </motion.div>
-            )}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={toggleFullscreen}
-                className="p-1.5 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
-                title="Plein Écran"
-              >
-                <Maximize size={16} />
-              </button>
-              <div className="w-8 h-8 rounded-full border border-[var(--primary)]/30 overflow-hidden bg-white/5 shadow-sm ring-2 ring-[var(--primary)]/10">
-                <img
-                  src={
-                    user.photoURL ||
-                    `https://ui-avatars.com/api/?name=${user.displayName || user.email}`
-                  }
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <button
-                onClick={logout}
-                className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-500/10"
-                title="Se déconnecter"
-              >
-                <ExternalLink size={14} />
-              </button>
+        <div className="fixed top-6 w-full z-50 px-4 pointer-events-none flex justify-center mt-6">
+          <header className="pointer-events-auto bg-[var(--bg)]/70 backdrop-blur-2xl border border-[var(--border)]/50 shadow-[0_8px_32px_rgba(0,0,0,0.12)] flex justify-between items-center px-4 py-2 rounded-[2rem] w-full max-w-6xl transition-all duration-500 hover:shadow-[0_8px_40px_rgba(0,0,0,0.16)] hover:bg-[var(--bg)]/80">
+            <div className="cursor-pointer hover:scale-105 active:scale-95 transition-transform" onClick={() => setShowSmartBar(true)}>
+              <Logo size="sm" />
             </div>
-          </div>
-        </header>
+
+            <div className="hidden md:flex flex-1 justify-center">
+              <AnalysisModeToggle
+                value={store.analysisMode}
+                setValue={store.setAnalysisMode}
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              {store.lastSaved && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  key={store.lastSaved}
+                  className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-[var(--text-muted)] font-black uppercase tracking-widest bg-[var(--card)] px-3 py-1.5 rounded-full border border-[var(--border)]/50 shadow-inner"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                  <span className="hidden xs:inline">Sauvegardé</span>
+                  <span className="hidden sm:inline opacity-60 ml-1">{store.lastSaved}</span>
+                </motion.div>
+              )}
+              <div className="flex items-center gap-2 pl-2 border-l border-[var(--border)]/50">
+                <button
+                  onClick={toggleFullscreen}
+                  className="p-2 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)] hover:text-white transition-all shadow-sm flex items-center justify-center active:scale-90"
+                  title="Plein Écran"
+                >
+                  <Maximize size={16} strokeWidth={2.5} />
+                </button>
+                <div className="w-9 h-9 rounded-full border-2 border-[var(--primary)]/30 overflow-hidden bg-white/5 shadow-sm ring-2 ring-transparent hover:ring-[var(--primary)]/20 transition-all cursor-pointer">
+                  <img
+                    src={
+                      user.photoURL ||
+                      `https://ui-avatars.com/api/?name=${user.displayName || user.email}`
+                    }
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <button
+                  onClick={logout}
+                  className="p-2 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-500/10 active:scale-90"
+                  title="Se déconnecter"
+                >
+                  <ExternalLink size={16} strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+          </header>
+        </div>
       )}
 
       {/* Content Area */}
-      <div className={isFullscreen ? "mt-4 pt-12 pb-12" : "mt-8"}>
+      <div className={isFullscreen ? "mt-4 pt-12 pb-12" : "mt-8 pb-32"}>
         <AnimatePresence mode="wait">
           {activeTab === "dashboard" && <DashboardView key="dashboard" />}
           {activeTab === "simulation" && <SimulationView key="simulation" />}
@@ -7358,7 +7661,8 @@ export default function App() {
 
       {/* BottomNav */}
       {!isFullscreen && (
-        <nav className="fixed bottom-0 w-full z-50 bg-[var(--bg)]/95 backdrop-blur-2xl border-t border-[var(--border)] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] flex items-center justify-start gap-4 h-[6.5rem] px-6 pb-8 pt-4 overflow-x-auto no-scrollbar max-w-lg mx-auto left-0 right-0 rounded-t-3xl transition-colors duration-300 snap-x">
+        <div className="fixed bottom-6 w-full px-4 z-50 pointer-events-none flex justify-center">
+          <nav className="bg-[var(--bg)]/70 backdrop-blur-3xl border border-[var(--border)] shadow-[0_20px_40px_rgba(0,0,0,0.4)] flex items-center justify-start gap-1 p-2 overflow-x-auto no-scrollbar rounded-[2rem] transition-all duration-500 w-full max-w-lg mx-auto pointer-events-auto snap-x">
           <NavItem
             icon={Home}
             label="Dash"
@@ -7426,7 +7730,8 @@ export default function App() {
             active={activeTab === "support"}
             onClick={() => setActiveTab("support")}
           />
-        </nav>
+          </nav>
+        </div>
       )}
     </div>
   );
@@ -7442,20 +7747,17 @@ const NavItem = ({
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center p-1 min-w-[72px] flex-shrink-0 snap-start group transition-all duration-300 ${active ? "-translate-y-1" : "hover:-translate-y-1"}`}
+      className={`flex flex-col items-center justify-center w-[4.5rem] flex-shrink-0 snap-start group transition-all duration-300`}
     >
       <div
-        className={`relative flex items-center justify-center w-14 h-10 rounded-2xl overflow-hidden transition-all duration-300 shadow-sm ${active ? (highlight ? "bg-gradient-to-r from-[var(--primary)] to-[var(--secondary)] shadow-[0_5px_15px_rgba(124,92,255,0.4)] text-white" : "bg-white/10 text-[var(--text)] border border-white/10") : "bg-[var(--card)] text-[var(--text-muted)] border border-[var(--border)] group-hover:text-[var(--text)] group-hover:bg-[var(--primary)]/5"}`}
+        className={`relative flex items-center justify-center w-12 h-12 rounded-[1.25rem] transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] ${active ? "scale-110 shadow-lg" : "scale-100"} ${active ? (highlight ? "bg-gradient-to-br from-[var(--primary)] to-[var(--secondary)] text-white shadow-[0_8px_20px_rgba(124,92,255,0.4)]" : "bg-[var(--card)] border border-white/10 text-[var(--text)] shadow-[0_8px_20px_rgba(0,0,0,0.2)]") : "bg-transparent text-[var(--text-muted)] hover:bg-white/5 hover:text-[var(--text)]"}`}
       >
-        <Icon
-          size={active ? 24 : 22}
-          className={`transition-colors duration-300 drop-shadow-sm`}
-          strokeWidth={active ? 2.5 : 2}
-        />
+        {active && !highlight && (
+          <div className="absolute inset-0 rounded-[1.25rem] border border-[var(--primary)]/30" />
+        )}
+        <Icon size={22} strokeWidth={active ? 2.5 : 2} className={active ? (highlight ? "" : "text-[var(--primary)]") : ""} />
       </div>
-      <span
-        className={`text-[10px] font-black tracking-widest mt-2 uppercase transition-colors duration-300 drop-shadow-sm ${active ? "text-[var(--text)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-muted)]"}`}
-      >
+      <span className={`text-[9px] font-black tracking-widest mt-2 uppercase transition-all duration-300 ${active ? "text-[var(--text)] opacity-100" : "text-[var(--text-muted)] opacity-0 group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0"}`}>
         {label}
       </span>
     </button>

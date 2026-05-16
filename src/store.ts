@@ -49,8 +49,9 @@ export interface HistoryItem {
     employees: Array<{
       id: string;
       name: string;
-      salary: number;
-      charges: number;
+      salary: number | "";
+      charges: number | "";
+      chargeType?: "%" | "€";
     }>;
     rent: number;
     utilities: number;
@@ -115,8 +116,9 @@ interface SimulationState {
   employees: Array<{
     id: string;
     name: string;
-    salary: number;
-    charges: number;
+    salary: number | "";
+    charges: number | "";
+    chargeType?: "%" | "€";
   }>;
   rent: number;
   utilities: number;
@@ -189,7 +191,7 @@ interface SimulationState {
   removeEmployee: (id: string) => void;
   updateEmployee: (
     id: string,
-    field: "salary" | "charges" | "name",
+    field: "salary" | "charges" | "name" | "chargeType",
     val: any,
   ) => void;
   setRent: (val: number) => void;
@@ -341,6 +343,7 @@ export const useSimulationStore = create<SimulationState>()(
               name: isOwner ? "Mindset Rentier (Dirigeant)" : "",
               salary: isOwner ? 2500 : 1800,
               charges: 45,
+              chargeType: "%",
             },
           ],
         })),
